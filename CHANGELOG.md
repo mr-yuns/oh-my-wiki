@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.1
+
+- Verify GitHub Actions npm Trusted Publishing with the initialized public
+  release workflow.
+
 ## 0.3.0
 
 - Initial public release of OMW as a local-first wiki runtime.
