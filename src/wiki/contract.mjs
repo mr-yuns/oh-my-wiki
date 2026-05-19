@@ -2,7 +2,7 @@ import path from 'node:path';
 import { mkdir, readFile } from 'node:fs/promises';
 import { pathExists, readJsonFile, writeJsonFile } from '../utils/fs.js';
 import { scanWikiContract } from './scanner.mjs';
-import { assertSafeExistingFile, assertSafeOptionalOwmDirectory } from './safety.mjs';
+import { assertSafeExistingFile, assertSafeOptionalFile, assertSafeOptionalOwmDirectory } from './safety.mjs';
 
 export const CONTRACT_RELATIVE_PATH = path.join('.omw', 'contract.json');
 export const DEFAULT_WIKI_LANGUAGE = 'en';
@@ -25,12 +25,14 @@ export async function loadWikiContract(wikiPath) {
     return { ok: false, configured: false, wikiPath: '', contractPath: '', contractExists: false, contract: null, issues: ['wikiPath is not configured'] };
   }
   const wikiExists = await pathExists(wikiPath);
-  const contractExists = contractPath ? await pathExists(contractPath) : false;
   const issues = [];
   if (!wikiExists) issues.push(`wikiPath does not exist: ${wikiPath}`);
+  const contractStatus = contractPath ? await safeOptionalContractStatus(wikiPath, contractPath) : { exists: false, issue: null };
+  const contractExists = contractStatus.exists;
   if (wikiExists && !contractExists) issues.push(`wiki contract does not exist: ${contractPath}`);
+  if (contractStatus.issue) issues.push(contractStatus.issue);
   let contract = null;
-  if (contractExists) {
+  if (contractExists && !contractStatus.issue) {
     try {
       contract = await readJsonFile(contractPath, null);
     } catch (error) {
@@ -48,8 +50,9 @@ export async function ensureWikiContract(wikiPath, options = {}) {
   if (!(await pathExists(wikiPath))) return { ok: false, created: false, updated: false, contractPath, issues: [`wikiPath does not exist: ${wikiPath}`] };
   const language = normalizeWikiLanguage(options.language || options.wikiLanguage);
   await assertSafeOptionalOwmDirectory(wikiPath);
+  const contractExists = await assertSafeOptionalFile({ wikiPath }, contractPath, 'Wiki contract');
   const scanned = await scanWikiContract(wikiPath, { ...options, language, writeManaged: true });
-  if (await pathExists(contractPath)) {
+  if (contractExists) {
     const current = await readJsonFile(contractPath, null);
     const next = current?.language === language ? mergeScannerOwnedContract(current, scanned) : scanned;
     if (scannerContractsEquivalent(current, next)) return { ok: true, created: false, updated: false, contractPath, issues: [] };
@@ -67,6 +70,7 @@ export async function refreshWikiContract(wikiPath, options = {}) {
   if (!(await pathExists(wikiPath))) return { ok: false, refreshed: false, contractPath, issues: [`wikiPath does not exist: ${wikiPath}`] };
   const language = normalizeWikiLanguage(options.language || options.wikiLanguage);
   if (!options.dryRun) await assertSafeOptionalOwmDirectory(wikiPath);
+  await assertSafeOptionalFile({ wikiPath }, contractPath, 'Wiki contract');
   const scanned = await scanWikiContract(wikiPath, { ...options, language, writeManaged: !options.dryRun });
   const current = await readJsonFile(contractPath, null);
   const next = current?.language === language ? mergeScannerOwnedContract(current, scanned) : scanned;
@@ -129,6 +133,20 @@ export async function buildWikiStatus(config) {
     }
   }
   return { ...status, ok: issues.length === 0, language, understanding: status.contract?.understanding || null, capabilities: status.contract?.capabilities || {}, search: { ...(status.contract?.search || {}), root: searchRoot, rootPath: searchRootPath, rootExists: searchRootExists }, raw: { root: rawRoot, rootPath: rawRootPath, rootExists: rawRootExists, types }, rules, issues };
+}
+
+async function safeOptionalContractStatus(wikiPath, contractPath) {
+  try {
+    return {
+      exists: await assertSafeOptionalFile({ wikiPath }, contractPath, 'Wiki contract'),
+      issue: null,
+    };
+  } catch (error) {
+    return {
+      exists: true,
+      issue: error instanceof Error ? error.message : String(error),
+    };
+  }
 }
 
 export async function loadWikiRuleSummaries(status, keys = []) {

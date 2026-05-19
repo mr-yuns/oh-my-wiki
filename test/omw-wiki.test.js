@@ -274,6 +274,53 @@ test('setup refuses symlinked .omw before writing managed contract assets', asyn
   await assert.rejects(readdir(path.join(external, 'templates')));
 });
 
+test('setup and status refuse symlinked wiki contract files', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'omw-setup-contract-symlink-'));
+  const home = path.join(root, 'state');
+  const wiki = path.join(root, 'wiki');
+  const external = path.join(root, 'external-contract.json');
+  const contractLink = path.join(wiki, '.omw', 'contract.json');
+  await mkdir(path.join(wiki, 'notes'), { recursive: true });
+  await mkdir(path.join(wiki, '.omw'), { recursive: true });
+  await writeFile(path.join(wiki, 'notes/alpha.md'), '# Alpha\n\nExisting personal note.\n');
+  await writeFile(external, '{"schemaVersion":2,"generatedBy":"external"}\n');
+  await symlink(external, contractLink);
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      cliPath,
+      'setup',
+      '--wiki',
+      wiki,
+      '--no-hooks',
+      '--codex-home',
+      path.join(root, 'codex'),
+      '--claude-home',
+      path.join(root, 'claude'),
+      '--omx-bin',
+      'omw-definitely-missing-command',
+      '--omc-bin',
+      'omw-definitely-missing-command',
+    ], { env: { ...process.env, OH_MY_WIKI_HOME: home } }),
+    /Wiki contract must be a real file/,
+  );
+  assert.equal(await readFile(external, 'utf8'), '{"schemaVersion":2,"generatedBy":"external"}\n');
+  await assert.rejects(readdir(path.join(wiki, '.omw', 'raw')));
+  await assert.rejects(readdir(path.join(wiki, '.omw', 'templates')));
+
+  await assert.rejects(
+    async () => {
+      try {
+        await execFileAsync(process.execPath, [cliPath, 'wiki', 'status', '--json'], { env: { ...process.env, OH_MY_WIKI_HOME: home } });
+      } catch (error) {
+        assert.match(error.stdout, /Wiki contract must be a real file/);
+        throw error;
+      }
+    },
+    /Command failed/,
+  );
+});
+
 test('setup refuses symlinked managed fallback raw root before writing assets', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'omw-setup-raw-root-symlink-'));
   const home = path.join(root, 'state');
