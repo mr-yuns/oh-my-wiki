@@ -384,6 +384,11 @@ omw skills install --platform claude
 These skills are prompt surfaces. They do not replace the CLI; they teach agents
 when and how to call the CLI safely.
 
+Write-oriented managed skills run `omw wiki contract --explain --json` first.
+When the active contract understanding score is below `100`, they follow the
+Wiki-specific Deep Interview handoff before capture, draft, daily-report, or
+promotion writes.
+
 OMW writes a `.omw-managed-skill.json` marker into installed skills. Reinstall
 only replaces skills with that marker; unmanaged user skills with the same
 directory name are left untouched and reported as an error.

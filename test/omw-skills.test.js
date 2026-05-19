@@ -23,6 +23,20 @@ test('managed wiki skill prompts target the configured wiki, not only the base w
   }
 });
 
+test('write-oriented managed skills gate writes on contract understanding', async () => {
+  const writeSkillNames = ['wiki-autopilot', 'wiki-capture', 'wiki-daily-report', 'wiki-ingest'];
+  for (const platform of ['codex', 'claude']) {
+    for (const name of writeSkillNames) {
+      const skillPath = path.join('skills', platform, name, 'SKILL.md');
+      const content = await readFile(skillPath, 'utf8');
+      assert.match(content, /omw wiki contract --explain --json/, `${skillPath} must inspect the active contract before writes`);
+      assert.match(content, /understanding\.score/, `${skillPath} must check contract understanding score`);
+      assert.match(content, /wiki-deep-interview/, `${skillPath} must route unfamiliar wikis through Deep Interview handoff`);
+      assert.match(content, /before (?:.*writes?|writing)/i, `${skillPath} must state the write boundary`);
+    }
+  }
+});
+
 test('managed skills install, report status, and uninstall for both platforms', async () => {
   for (const platform of ['codex', 'claude']) {
     const root = await mkdtemp(path.join(os.tmpdir(), `omw-skills-${platform}-`));
