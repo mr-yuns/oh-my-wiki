@@ -859,6 +859,7 @@ test('refresh overwrites stale legacy contract sections with the scanned wiki sh
   const stale = JSON.parse(await readFile(contractPath, 'utf8'));
   stale.schemaVersion = 1;
   stale.raw.root = 'stale/raw';
+  stale.raw.ambiguities = [{ kind: 'raw-root', root: 'stale/raw', score: 99, sources: ['stale'], evidence: ['stale/raw'] }];
   stale.raw.types.agent_session.folder = 'stale_sessions';
   stale.search.root = 'stale';
   await writeFile(contractPath, `${JSON.stringify(stale, null, 2)}\n`);
@@ -867,6 +868,7 @@ test('refresh overwrites stale legacy contract sections with the scanned wiki sh
   const refreshed = JSON.parse(await readFile(contractPath, 'utf8'));
   assert.equal(refreshed.schemaVersion, 2);
   assert.equal(refreshed.raw.root, 'raw');
+  assert.deepEqual(refreshed.raw.ambiguities, []);
   assert.equal(refreshed.raw.types.agent_session.folder, 'sessions');
   assert.notEqual(refreshed.search.root, 'stale');
 });

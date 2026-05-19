@@ -551,7 +551,7 @@ function scannerOwnedTopLevelKeys() {
 }
 
 function scannerOwnedRawKeys() {
-  return new Set(['root', 'noteTypes', 'placeholder', 'sensitivityCheck', 'naming', 'types', 'ingestStates']);
+  return new Set(['root', 'noteTypes', 'placeholder', 'sensitivityCheck', 'naming', 'types', 'ingestStates', 'ambiguities']);
 }
 
 function scannerOwnedRawTypeKeys() {
