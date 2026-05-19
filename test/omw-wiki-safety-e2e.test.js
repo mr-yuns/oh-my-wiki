@@ -153,6 +153,59 @@ test('generic wiki capture to ingest e2e writes only generated state and explici
   assert.deepEqual(await snapshotFiles(path.resolve('.wiki')), repoWikiBefore);
 });
 
+test('top-level wiki aliases honor connected wiki and leave repository base wiki unchanged', async () => {
+  const repoWikiBefore = await snapshotFiles(path.resolve('.wiki'));
+  const root = await mkdtemp(path.join(os.tmpdir(), 'omw-alias-connected-wiki-'));
+  const home = path.join(root, 'state');
+  const wiki = path.join(root, 'wiki');
+  const env = { ...process.env, OH_MY_WIKI_HOME: home };
+  await mkdir(path.join(wiki, 'notes'), { recursive: true });
+  await writeFile(path.join(wiki, 'notes/index.md'), '# Alias Personal Index\n\nAlias-safe personal wiki note.\n');
+  await execFileAsync(process.execPath, [
+    cliPath,
+    'setup',
+    '--wiki',
+    wiki,
+    '--language',
+    'en',
+    '--no-hooks',
+    '--codex-home',
+    path.join(root, 'codex'),
+    '--claude-home',
+    path.join(root, 'claude'),
+    '--omx-bin',
+    'omw-definitely-missing-command',
+    '--omc-bin',
+    'omw-definitely-missing-command',
+  ], { env });
+
+  let before = await snapshotFiles(wiki);
+  const captured = JSON.parse((await execFileAsync(process.execPath, [
+    cliPath,
+    'capture',
+    '--title',
+    'Alias E2E Source',
+    '--body',
+    'Alias e2e raw body.',
+    '--json',
+  ], { env })).stdout);
+  const rawRef = path.relative(wiki, captured.path).split(path.sep).join('/');
+  assert.match(rawRef, /^\.omw\/raw\/agent_sessions\//);
+  assertOnlyChanged(before, await snapshotFiles(wiki), [rawRef]);
+
+  before = await snapshotFiles(wiki);
+  const queue = JSON.parse((await execFileAsync(process.execPath, [cliPath, 'queue', '--json'], { env })).stdout);
+  assert.equal(queue.total, 1);
+  assert.equal(queue.items[0].relativePath, rawRef);
+  const preview = JSON.parse((await execFileAsync(process.execPath, [cliPath, 'ingest', rawRef, '--json'], { env })).stdout);
+  assert.equal(preview.writePerformed, false);
+  assert.deepEqual(await snapshotFiles(wiki), before);
+
+  const validation = JSON.parse((await execFileAsync(process.execPath, [cliPath, 'validate', '--json'], { env })).stdout);
+  assert.equal(validation.ok, true);
+  assert.deepEqual(await snapshotFiles(path.resolve('.wiki')), repoWikiBefore);
+});
+
 async function setupBaseWiki(prefix, language) {
   const root = await mkdtemp(path.join(os.tmpdir(), prefix));
   const home = path.join(root, 'state');
