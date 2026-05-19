@@ -36,11 +36,12 @@ export async function markdownFiles(root, options = {}) {
   const out = [];
   const ignoreDirNames = new Set([...IGNORE_DIRS].map(normalizePath));
   const excludeDirs = new Set([...(options.excludeDirs || [])].map(normalizePath));
-  await walk(root, out, { ignoreDirNames, excludeDirs, root });
+  await walk(root, out, { ignoreDirNames, excludeDirs, root, directories: options.directories });
   return out;
 }
 
 async function walk(dir, out, options) {
+  if (options.directories) options.directories.add(dir);
   const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
   for (const entry of entries) {
     const child = path.join(dir, entry.name);

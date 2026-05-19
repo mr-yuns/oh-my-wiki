@@ -368,16 +368,21 @@ Usage:
   omw setup [--wiki <path>] [--language en|ko] [--wiki-auto-capture]
   omw init [--wiki <path>] [--language en|ko] [--json]
   omw doctor [--json]
+  omw paths
   omw wiki --help
   omw wiki init|status|refresh|contract|search|capture|queue|ingest|daily|report-raw-ingest|report-daily|validate
-  omw search "<query>" [--backend auto|sqlite|scan] [--type <type>] [--status <status>] [--path <path>] [--sort relevance|path|title]
+  omw search "<query>" [--backend auto|sqlite|scan] [--limit <n>] [--type <type>] [--status <status>] [--path <path>] [--sort relevance|path|title] [--json]
   omw capture --title "<title>" --stdin
+  omw queue [--json]
   omw ingest <raw-note> [--write-draft]
   omw ingest <raw-note> --promote --target <relative-note.md>
   omw daily --author "<name>" --team "<team>" --date YYYY-MM-DD --stdin
   omw report-raw-ingest [--language en|ko]
   omw report-daily [--language en|ko] [--date YYYY-MM-DD] [--author <name>] [--team <team>]
   omw validate [--json]
+  omw codex-hooks install|status|uninstall
+  omw claude-hooks install|status|uninstall
+  omw skills install|status|list|uninstall --platform codex|claude
   omw omx -- <args...>
   omw omc -- <args...>
   omw -- <omx args...>

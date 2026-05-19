@@ -16,7 +16,7 @@
     "wiki-agent": "src/cli/omw.js"
   },
   "scripts": {
-    "test": "node --test test/*.test.js",
+    "test": "node --test --test-concurrency=1 test/*.test.js",
     "check": "find src -type f \\( -name '*.js' -o -name '*.mjs' \\) -print0 | xargs -0 -n1 node --check && npm test",
     "smoke": "node src/cli/omw.js --help",
     "check:git-policy": "node scripts/git-policy.mjs subject \"feat: validate git policy\" && node scripts/git-policy.mjs branch \"fix/example-branch\""

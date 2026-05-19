@@ -358,7 +358,7 @@ async function wikiSearch({ config, options }) {
     `Wiki search: ${result.query}`,
     `- backend: ${result.backend}`,
     `- total: ${result.total}`,
-    ...(result.unfilteredTotal !== result.total ? [`- unfiltered total: ${result.unfilteredTotal}`] : []),
+    ...(result.unfilteredTotal !== result.total ? [`- ${result.unfilteredTotalExact === false ? 'unfiltered candidates' : 'unfiltered total'}: ${result.unfilteredTotal}`] : []),
     ...(activeFilters.length > 0 ? [`- filters: ${activeFilters.map(([key, value]) => `${key}=${value}`).join(', ')}`] : []),
     ...(result.sort && result.sort !== 'relevance' ? [`- sort: ${result.sort}`] : []),
     ...(result.fallbackReason ? [`- fallback: ${result.fallbackReason}`] : []),

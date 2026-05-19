@@ -10,7 +10,7 @@ const SEARCH_BACKENDS = new Map([
 // Backends require a numeric LIMIT; use a practical upper bound when caller-side filters need all matches.
 const ALL_MATCHES_LIMIT = 1_000_000_000;
 
-export async function searchWiki({ config, query, limit = 20, backend = 'auto', filters = {}, sort = 'relevance' }) {
+export async function searchWiki({ config, query, limit = 20, backend = 'auto', filters = {}, sort = 'relevance', refreshIndex = true }) {
   const normalized = String(query || '').trim();
   if (!normalized) throw new Error('wiki search requires a query');
   const status = await buildWikiStatus(config);
@@ -29,6 +29,7 @@ export async function searchWiki({ config, query, limit = 20, backend = 'auto', 
       rankingOverrides,
       query: normalized,
       limit: backendLimit,
+      refreshIndex,
     });
   } catch (error) {
     if (backend !== 'auto' || selectedBackend.name !== sqliteSearchBackend.name) throw error;
@@ -53,6 +54,7 @@ export async function searchWiki({ config, query, limit = 20, backend = 'auto', 
     backend: result.backend || selectedBackend.name,
     total: sorted.length,
     unfilteredTotal: result.total,
+    unfilteredTotalExact: result.totalExact !== false,
     filters: normalizeFilters(filters),
     sort,
     results: sorted.slice(0, limit),

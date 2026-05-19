@@ -8,32 +8,44 @@ export const scanSearchBackend = {
     const normalized = String(query || '').trim().toLowerCase();
     const ranking = normalizeSearchRanking(rankingOverrides);
     const terms = queryTerms(normalized);
-    const files = await markdownFiles(searchRootPath || wikiPath, { excludeDirs });
+    const root = searchRootPath || wikiPath;
+    const files = await markdownFiles(root, { excludeDirs });
     const results = [];
-    for (const file of files) {
-      const text = await readFile(file, 'utf8').catch(() => '');
-      const haystack = `${path.basename(file)}\n${text}`.toLowerCase();
-      if (!matchesQuery(haystack, normalized, terms)) continue;
-      results.push({
-        path: file,
-        relativePath: path.relative(wikiPath, file),
-        title: titleFromText(text, file),
-        score: scanScore(file, text, normalized, terms, ranking),
-        rankSignals: {
-          ...noteSearchMetadata(text, path.relative(searchRootPath || wikiPath, file)),
-          ranking,
-        },
-        excerpt: excerptForTerms(text, terms.length > 0 ? terms : [normalized]),
-      });
+    const batchSize = 256;
+    for (let start = 0; start < files.length; start += batchSize) {
+      const batch = files.slice(start, start + batchSize);
+      const matches = await Promise.all(batch.map(async (file) => scanFile({ file, wikiPath, root, normalized, terms, ranking })));
+      for (const match of matches) {
+        if (match) results.push(match);
+      }
     }
     results.sort((left, right) => right.score - left.score || left.relativePath.localeCompare(right.relativePath));
     return {
       backend: 'scan',
       total: results.length,
+      totalExact: true,
       results: results.slice(0, limit),
     };
   },
 };
+
+async function scanFile({ file, wikiPath, root, normalized, terms, ranking }) {
+  const text = await readFile(file, 'utf8').catch(() => '');
+  const haystack = `${path.basename(file)}\n${text}`.toLowerCase();
+  if (!matchesQuery(haystack, normalized, terms)) return null;
+  const relativePath = path.relative(wikiPath, file);
+  return {
+    path: file,
+    relativePath,
+    title: titleFromText(text, file),
+    score: scanScore(file, text, normalized, terms, ranking),
+    rankSignals: {
+      ...noteSearchMetadata(text, path.relative(root, file)),
+      ranking,
+    },
+    excerpt: excerptForTerms(text, terms.length > 0 ? terms : [normalized]),
+  };
+}
 
 function matchesQuery(haystack, normalizedQuery, terms) {
   if (!normalizedQuery) return false;

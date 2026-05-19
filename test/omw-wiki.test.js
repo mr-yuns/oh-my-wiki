@@ -939,6 +939,84 @@ test('sqlite search keeps legacy default ranking unless contract overrides it', 
   assert.equal(overridden.results[0].rankSignals.ranking.title, 40);
 });
 
+test('sqlite search notices new markdown in a previously empty scanned directory within recent-sync TTL', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'omw-sqlite-fresh-'));
+  const home = path.join(root, 'state');
+  const wiki = path.join(root, 'wiki');
+  await mkdir(path.join(wiki, 'notes', 'empty'), { recursive: true });
+  await writeFile(path.join(wiki, 'notes', 'existing.md'), '# Existing\n\ninitial searchable note\n');
+  await execFileAsync(process.execPath, [
+    cliPath,
+    'setup',
+    '--wiki',
+    wiki,
+    '--language',
+    'en',
+    '--no-hooks',
+    '--codex-home',
+    path.join(root, 'codex'),
+    '--claude-home',
+    path.join(root, 'claude'),
+    '--omx-bin',
+    'omw-definitely-missing-command',
+    '--omc-bin',
+    'omw-definitely-missing-command',
+  ], { env: { ...process.env, OH_MY_WIKI_HOME: home } });
+
+  const { searchWiki } = await import('../src/wiki/search.mjs');
+  const config = { wikiPath: wiki, wikiLanguage: 'en' };
+  const before = await searchWiki({ config, query: 'freshneedle', backend: 'sqlite', limit: 5 });
+  assert.equal(before.total, 0);
+
+  await writeFile(path.join(wiki, 'notes', 'empty', 'fresh.md'), '# Fresh\n\nfreshneedle appears inside a formerly empty directory.\n');
+  const after = await searchWiki({ config, query: 'freshneedle', backend: 'sqlite', limit: 5 });
+  assert.equal(after.total, 1);
+  assert.equal(after.results[0].relativePath, 'notes/empty/fresh.md');
+});
+
+test('sqlite CLI search exits promptly after installing recent-sync watchers', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'omw-sqlite-watch-exit-'));
+  const home = path.join(root, 'state');
+  const wiki = path.join(root, 'wiki');
+  await mkdir(path.join(wiki, 'notes'), { recursive: true });
+  await writeFile(path.join(wiki, 'notes', 'existing.md'), '# Existing\n\nprompt exit searchable note\n');
+  const env = { ...process.env, OH_MY_WIKI_HOME: home };
+  await execFileAsync(process.execPath, [
+    cliPath,
+    'setup',
+    '--wiki',
+    wiki,
+    '--language',
+    'en',
+    '--no-hooks',
+    '--codex-home',
+    path.join(root, 'codex'),
+    '--claude-home',
+    path.join(root, 'claude'),
+    '--omx-bin',
+    'omw-definitely-missing-command',
+    '--omc-bin',
+    'omw-definitely-missing-command',
+  ], { env });
+
+  const search = await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'search',
+    'searchable',
+    '--backend',
+    'sqlite',
+    '--json',
+  ], { env, timeout: 3500 }).catch((error) => {
+    if (/sqlite search backend requires node:sqlite support|Wiki search backend is not available: sqlite/.test(error.stderr || error.message)) return null;
+    throw error;
+  });
+  if (!search) return;
+
+  const result = JSON.parse(search.stdout);
+  assert.equal(result.total, 1);
+});
+
 test('setup regenerates scanner-owned contract sections from the connected wiki', async () => {
   const { wiki, env } = await setupIsolatedWiki('omw-contract-regenerate-', 'en');
   const contractPath = path.join(wiki, '.omw/contract.json');

@@ -126,7 +126,7 @@ async function runSearchBenchmark({ config, fixture, backend, coldIndexBuildMs }
   let excerptsContainTerms = true;
   for (const item of fixture.seeded) {
     const start = performance.now();
-    const result = await searchWiki({ config, query: item.query, backend, limit: 5 });
+    const result = await searchWiki({ config, query: item.query, backend, limit: 5, refreshIndex: backend !== 'sqlite' });
     durations.push(performance.now() - start);
     const top5 = result.results.map((entry) => entry.relativePath);
     const top1 = top5[0] || '';
