@@ -213,9 +213,11 @@ base with English and Korean layouts:
 ```
 
 The tracked base wiki contains only reusable Markdown content, templates, and
-editor defaults. OMW runtime files such as `.omw/contract.json`, search indexes,
-ingest drafts, and report/validation logic are generated or provided by the CLI
-outside the repository base wiki.
+shared editor defaults. OMW runtime files such as `.omw/contract.json`, search
+indexes, ingest drafts, and report/validation logic are not tracked or packed
+with the repository base wiki. If you use the repository `.wiki` directly as the
+active wiki, those runtime files may be generated locally under `.wiki/.omw/`;
+`.wiki/.gitignore` keeps them out of Git and the npm package.
 
 You can use it directly, fork it, or ignore it and connect another Markdown
 folder with `omw setup --wiki <path>`.

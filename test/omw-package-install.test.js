@@ -38,9 +38,8 @@ test('npm package installs working omw and wiki-agent bins with packaged runtime
     for (const required of requiredPackedFiles()) {
       assert(packedFiles.has(required), `packed artifact should include ${required}`);
     }
-    for (const excluded of ['.wiki/.omw/contract.json', '.wiki/scripts/_wiki-tools.mjs', '.wiki/scripts/validate-wiki']) {
-      assert(!packedFiles.has(excluded), `packed artifact should not include ${excluded}`);
-    }
+    assert(![...packedFiles].some((file) => file.startsWith('.wiki/.omw/')), 'packed artifact should not include base wiki runtime state');
+    assert(![...packedFiles].some((file) => file.startsWith('.wiki/scripts/')), 'packed artifact should not include base wiki scripts');
     const tarballPath = path.join(packDir, packed.filename);
     assert(await fileExists(tarballPath), `tarball should exist at ${tarballPath}`);
     const extractDir = path.join(tempRoot, 'extract');
