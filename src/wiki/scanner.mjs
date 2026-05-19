@@ -3,6 +3,7 @@ import { mkdir } from 'node:fs/promises';
 import { pathExists, writeTextFileAtomic } from '../utils/fs.js';
 import { inventoryDirectories, inventoryMarkdownFiles } from './scanner/inventory.mjs';
 import { normalizeComparable } from './scanner/text.mjs';
+import { assertSafeExistingDirectory } from './safety.mjs';
 
 const SCANNER_NAME = 'omw-contract-scanner';
 const SCANNER_VERSION = 1;
@@ -357,13 +358,31 @@ function rawTypeMatchesFolder(key, folder) {
 }
 
 async function ensureManagedRaw({ wikiPath, rawRoot, types, templates, language, noteType, ingestState, sensitivityCheck }) {
-  await mkdir(path.join(wikiPath, rawRoot), { recursive: true });
+  const status = { wikiPath };
+  const rawRootPath = path.join(wikiPath, rawRoot);
+  if (await pathExists(rawRootPath)) {
+    await assertSafeExistingDirectory(status, rawRootPath, 'Raw root');
+  }
+  await mkdir(rawRootPath, { recursive: true });
+  await assertSafeExistingDirectory(status, rawRootPath, 'Raw root');
   for (const type of Object.values(types)) {
-    if (type.folder) await mkdir(path.join(wikiPath, rawRoot, type.folder), { recursive: true });
+    if (type.folder) {
+      const folderPath = path.join(wikiPath, rawRoot, type.folder);
+      if (await pathExists(folderPath)) {
+        await assertSafeExistingDirectory(status, folderPath, 'Raw type folder');
+      }
+      await mkdir(folderPath, { recursive: true });
+      await assertSafeExistingDirectory(status, folderPath, 'Raw type folder');
+    }
     if (type.agentTemplate?.startsWith('.omw/templates/') && !templates[path.basename(type.agentTemplate, '.md')]) {
       const templatePath = path.join(wikiPath, type.agentTemplate);
       if (!(await pathExists(templatePath))) {
-        await mkdir(path.dirname(templatePath), { recursive: true });
+        const templateDir = path.dirname(templatePath);
+        if (await pathExists(templateDir)) {
+          await assertSafeExistingDirectory(status, templateDir, 'Raw template directory');
+        }
+        await mkdir(templateDir, { recursive: true });
+        await assertSafeExistingDirectory(status, templateDir, 'Raw template directory');
         await writeTextFileAtomic(templatePath, fallbackTemplate(path.basename(type.agentTemplate, '.md'), { language, noteType, ingestState, sensitivityCheck }));
       }
     }
