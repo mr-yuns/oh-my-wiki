@@ -656,6 +656,34 @@ test('base wiki reports accept spaced language options and localize headings', a
   assert.match(koreanDaily.stdout, /\| 보고일 \| 작성자 \| 팀 \| ingest상태 \| 관련프로젝트 \| 노트 \|/);
 });
 
+test('base wiki reports refuse symlinked report roots before reading external notes', async () => {
+  const rawFixture = await setupIsolatedWiki('omw-base-report-raw-symlink-', 'en');
+  const rawRoot = path.join(rawFixture.wiki, 'en', '01. Inbox', '01-01. Raw');
+  const externalRaw = path.join(rawFixture.root, 'external-raw-root');
+  await mkdir(externalRaw, { recursive: true });
+  await writeFile(path.join(externalRaw, 'external.md'), '# External Raw\n\nexternal-base-raw-needle\n');
+  await rm(rawRoot, { recursive: true, force: true });
+  await symlink(externalRaw, rawRoot, 'dir');
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [cliPath, 'wiki', 'report-raw-ingest', '--language', 'en'], { env: rawFixture.env }),
+    /Raw root must be a real directory/,
+  );
+
+  const dailyFixture = await setupIsolatedWiki('omw-base-report-daily-symlink-', 'en');
+  const dailyRoot = path.join(dailyFixture.wiki, 'en', '01. Inbox', '01-01. Raw', '01-01-02. Daily Reports');
+  const externalDaily = path.join(dailyFixture.root, 'external-daily-root');
+  await mkdir(externalDaily, { recursive: true });
+  await writeFile(path.join(externalDaily, 'external.md'), '# External Daily\n\nexternal-base-daily-needle\n');
+  await rm(dailyRoot, { recursive: true, force: true });
+  await symlink(externalDaily, dailyRoot, 'dir');
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [cliPath, 'wiki', 'report-daily', '--language', 'en'], { env: dailyFixture.env }),
+    /Daily report root must be a real directory/,
+  );
+});
+
 test('wiki report parser handles inline values, YAML comments, and flow arrays', async () => {
   const { env, wiki } = await setupIsolatedWiki('omw-report-yaml-', 'en');
   const created = await execFileAsync(process.execPath, [

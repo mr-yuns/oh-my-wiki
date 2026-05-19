@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 
 const NOTE_TOPS = [
@@ -108,7 +108,12 @@ export function createRawIngestReport({ root, language }) {
   const rawRoots = [
     language && `${language}/01. Inbox/01-01. Raw`,
     '01. Inbox/01-01. Raw',
-  ].filter(Boolean).filter((item) => existsSync(path.join(root, item)));
+  ].filter(Boolean).filter((item) => {
+    const rawRootPath = path.join(root, item);
+    if (!existsSync(rawRootPath)) return false;
+    assertSafeExistingDirectory(root, rawRootPath, 'Raw root');
+    return true;
+  });
   const rows = rawRoots.flatMap((rawRoot) => markdownFiles(path.join(root, rawRoot)).map((file) => {
     const text = readFileSync(file, 'utf8');
     const { frontmatter } = splitFrontmatter(text);
@@ -138,7 +143,12 @@ export function createDailyReportSummary({ root, language, date, team, author })
     language && `${language}/01. Inbox/01-01. Raw/01-01-02. 일간 리포트`,
     '01. Inbox/01-01. Raw/01-01-02. Daily Reports',
     '01. Inbox/01-01. Raw/01-01-02. 일간 리포트',
-  ].filter(Boolean).filter((item) => existsSync(path.join(root, item)));
+  ].filter(Boolean).filter((item) => {
+    const dailyRootPath = path.join(root, item);
+    if (!existsSync(dailyRootPath)) return false;
+    assertSafeExistingDirectory(root, dailyRootPath, 'Daily report root');
+    return true;
+  });
 
   const rows = dailyRoots.flatMap((dailyRoot) => markdownFiles(path.join(root, dailyRoot)).map((file) => {
     const text = readFileSync(file, 'utf8');
@@ -364,6 +374,21 @@ function walk(dir, extensions, out) {
       out.push(child);
     }
   }
+}
+
+function assertSafeExistingDirectory(root, directoryPath, label) {
+  const directoryStat = lstatSync(directoryPath);
+  if (directoryStat.isSymbolicLink() || !directoryStat.isDirectory()) {
+    throw new Error(`${label} must be a real directory: ${rel(root, directoryPath)}`);
+  }
+  if (!isInsidePath(realpathSync(root), realpathSync(directoryPath))) {
+    throw new Error(`${label} must stay inside the wiki: ${rel(root, directoryPath)}`);
+  }
+}
+
+function isInsidePath(parent, child) {
+  const relative = path.relative(parent, child);
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
 function sectionLines(body, heading) {
