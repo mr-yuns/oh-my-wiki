@@ -41,6 +41,9 @@ test('npm package installs working omw and wiki-agent bins with packaged runtime
     assert(![...packedFiles].some((file) => file.startsWith('.wiki/.omw/')), 'packed artifact should not include base wiki runtime state');
     assert(![...packedFiles].some((file) => file.startsWith('.wiki/.obsidian/')), 'packed artifact should not include base wiki editor-local state');
     assert(![...packedFiles].some((file) => file.startsWith('.wiki/scripts/')), 'packed artifact should not include base wiki scripts');
+    for (const file of packedFiles) {
+      if (file.startsWith('.wiki/')) assert(isAllowedPackedBaseWikiFile(file), `packed base wiki should contain only Markdown content and placeholders: ${file}`);
+    }
     const tarballPath = path.join(packDir, packed.filename);
     assert(await fileExists(tarballPath), `tarball should exist at ${tarballPath}`);
     const extractDir = path.join(tempRoot, 'extract');
@@ -107,6 +110,10 @@ test('npm package installs working omw and wiki-agent bins with packaged runtime
     await rm(tempRoot, { recursive: true, force: true });
   }
 });
+
+function isAllowedPackedBaseWikiFile(file) {
+  return file.endsWith('.md') || file.endsWith('/.gitkeep');
+}
 
 function requiredPackedFiles() {
   return [
