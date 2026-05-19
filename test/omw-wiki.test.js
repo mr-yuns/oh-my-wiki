@@ -395,6 +395,40 @@ test('setup refuses symlinked managed fallback template directory before writing
   assert.equal((await readdir(external)).length, 0);
 });
 
+test('setup refuses broken symlinked managed fallback templates before replacing them', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'omw-setup-template-broken-symlink-'));
+  const home = path.join(root, 'state');
+  const wiki = path.join(root, 'wiki');
+  const templateDir = path.join(wiki, '.omw/templates');
+  const external = path.join(root, 'missing-template.md');
+  await mkdir(path.join(wiki, 'notes'), { recursive: true });
+  await mkdir(templateDir, { recursive: true });
+  await writeFile(path.join(wiki, 'notes/index.md'), '# Personal Wiki\n');
+  await symlink(external, path.join(templateDir, 'agent_session.md'));
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      cliPath,
+      'setup',
+      '--wiki',
+      wiki,
+      '--language',
+      'en',
+      '--no-hooks',
+      '--codex-home',
+      path.join(root, 'codex'),
+      '--claude-home',
+      path.join(root, 'claude'),
+      '--omx-bin',
+      'omw-definitely-missing-command',
+      '--omc-bin',
+      'omw-definitely-missing-command',
+    ], { env: { ...process.env, OH_MY_WIKI_HOME: home } }),
+    /Raw template must be a real file/,
+  );
+  await assert.rejects(readFile(external, 'utf8'));
+});
+
 test('omx wrapper supports env override and top-level passthrough', async () => {
   const { env } = await setupIsolatedWiki('omw-wrapper-', 'en', { omxBin: process.execPath });
   const wrapped = await execFileAsync(process.execPath, [
@@ -768,6 +802,46 @@ test('wiki daily refuses symlinked existing daily report files before reading', 
   );
   assert.equal(await readFile(external, 'utf8'), '# External Daily\n\nDo not read this external note.\n');
   await assert.rejects(readFile(path.join(wiki, '.omw', 'external-daily-note.md'), 'utf8'));
+});
+
+test('wiki daily refuses broken symlinked report files before replacing them', async () => {
+  const { root, env } = await setupIsolatedWiki('omw-daily-broken-note-symlink-', 'en');
+  const dryRun = JSON.parse((await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'daily',
+    '--author',
+    'Alex',
+    '--team',
+    'Docs',
+    '--date',
+    '2026-05-18',
+    '--body',
+    '- Planned work',
+    '--dry-run',
+    '--json',
+  ], { env })).stdout);
+  const external = path.join(root, 'missing-daily-note.md');
+  await mkdir(path.dirname(dryRun.path), { recursive: true });
+  await symlink(external, dryRun.path);
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      cliPath,
+      'wiki',
+      'daily',
+      '--author',
+      'Alex',
+      '--team',
+      'Docs',
+      '--date',
+      '2026-05-18',
+      '--body',
+      '- Follow-up work',
+    ], { env }),
+    /Daily report note must be a real file/,
+  );
+  await assert.rejects(readFile(external, 'utf8'));
 });
 
 test('wiki daily updates English reports using English sections', async () => {
@@ -1498,6 +1572,22 @@ test('auto search surfaces symlinked sqlite index safety errors instead of falli
       return /SQLite index must be a real file/.test(text);
     },
   );
+});
+
+test('auto search refuses broken symlinked sqlite indexes before creating external targets', async () => {
+  if (!(await sqliteAvailable())) return;
+  const { root, wiki, env } = await setupIsolatedWiki('omw-search-broken-sqlite-symlink-', 'en');
+  const external = path.join(root, 'missing-auto-index.sqlite');
+  await symlink(external, path.join(wiki, '.omw/index.sqlite'));
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [cliPath, 'wiki', 'search', 'Knowledge Map', '--json'], { env }),
+    (error) => {
+      const text = `${error.stderr || ''}\n${error.message || ''}`;
+      return /SQLite index must be a real file/.test(text);
+    },
+  );
+  await assert.rejects(readFile(external, 'utf8'));
 });
 
 test('wiki refresh index surfaces symlinked sqlite index safety errors', async () => {

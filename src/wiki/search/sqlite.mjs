@@ -2,7 +2,7 @@ import { watch } from 'node:fs';
 import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { pathExists } from '../../utils/fs.js';
-import { assertSafeExistingDirectory, assertSafeExistingFile, assertSafeOptionalOwmDirectory, ensureSafeDirectory } from '../safety.mjs';
+import { assertSafeExistingDirectory, assertSafeOptionalFile, assertSafeOptionalOwmDirectory, ensureSafeDirectory } from '../safety.mjs';
 import { DEFAULT_SQLITE_SEARCH_RANKING, excerptForTerms, markdownFiles, noteFileMetadata, noteSearchMetadata, normalizeSearchRanking, queryTerms, titleFromText } from './shared.mjs';
 
 const INDEX_RELATIVE_PATH = path.join('.omw', 'index.sqlite');
@@ -66,9 +66,7 @@ async function prepareSafeIndexPath(wikiPath, dbPath) {
   if (await pathExists(dbDir)) {
     await assertSafeExistingDirectory(status, dbDir, 'SQLite index directory');
   }
-  if (await pathExists(dbPath)) {
-    await assertSafeExistingFile(status, dbPath, 'SQLite index');
-  }
+  await assertSafeOptionalFile(status, dbPath, 'SQLite index');
 }
 
 async function loadSqlite() {

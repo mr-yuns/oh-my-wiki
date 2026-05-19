@@ -2,7 +2,7 @@ import path from 'node:path';
 import { pathExists, writeTextFileAtomic } from '../utils/fs.js';
 import { inventoryDirectories, inventoryMarkdownFiles } from './scanner/inventory.mjs';
 import { normalizeComparable } from './scanner/text.mjs';
-import { ensureSafeDirectory } from './safety.mjs';
+import { assertSafeOptionalFile, ensureSafeDirectory } from './safety.mjs';
 
 const SCANNER_NAME = 'omw-contract-scanner';
 const SCANNER_VERSION = 1;
@@ -367,7 +367,7 @@ async function ensureManagedRaw({ wikiPath, rawRoot, types, templates, language,
     }
     if (type.agentTemplate?.startsWith('.omw/templates/') && !templates[path.basename(type.agentTemplate, '.md')]) {
       const templatePath = path.join(wikiPath, type.agentTemplate);
-      if (!(await pathExists(templatePath))) {
+      if (!(await assertSafeOptionalFile(status, templatePath, 'Raw template'))) {
         const templateDir = path.dirname(templatePath);
         await ensureSafeDirectory(status, templateDir, 'Raw template directory');
         await writeTextFileAtomic(templatePath, fallbackTemplate(path.basename(type.agentTemplate, '.md'), { language, noteType, ingestState, sensitivityCheck }));

@@ -132,7 +132,7 @@ function placeholderText(dailyConfig = {}) {
 
 async function buildDailyReportWrite({ status, dailyType, notePath, author, team, reportDate, body, platform }) {
   const redactedBody = redactSensitiveText(body);
-  const exists = await pathExists(notePath);
+  const exists = await assertSafeOptionalFile(status, notePath, 'Daily report note');
   if (!exists) {
     const fragment = parseDailyFragment(redactedBody, status.contract?.daily);
     const note = await renderDailyReport({
@@ -152,7 +152,6 @@ async function buildDailyReportWrite({ status, dailyType, notePath, author, team
       added: withSections.added + fragment.work.length,
     };
   }
-  await assertSafeOptionalFile(status, notePath, 'Daily report note');
   const merged = await mergeDailyReport({ status, notePath, body: redactedBody, platform });
   return {
     note: merged.note,
