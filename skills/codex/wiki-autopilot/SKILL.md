@@ -10,7 +10,7 @@ metadata:
 Use when the user asks to keep wiki knowledge up to date.
 
 1. Run `omw wiki contract --explain --json` before write-oriented actions.
-2. If `understanding.score` is below `100`, follow the `wiki-deep-interview` handoff prompt and answer missing dimensions before capture, draft, or promote writes.
+2. If `understanding.score` is below `100`, follow the `wiki-deep-interview` handoff prompt and answer missing dimensions before capture, draft, promote, or other structure-dependent wiki workflows.
 3. Search first with `omw wiki search "<topic>"`.
 4. If reusable knowledge is missing and the contract is understood, capture a Raw note.
 5. Use ingest preview before any durable promotion.

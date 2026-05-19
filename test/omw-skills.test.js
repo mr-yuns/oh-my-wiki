@@ -23,7 +23,7 @@ test('managed wiki skill prompts target the configured wiki, not only the base w
   }
 });
 
-test('write-oriented managed skills gate writes on contract understanding', async () => {
+test('structure-dependent managed skills gate workflows on contract understanding', async () => {
   const writeSkillNames = ['wiki-autopilot', 'wiki-capture', 'wiki-daily-report', 'wiki-ingest'];
   for (const platform of ['codex', 'claude']) {
     for (const name of writeSkillNames) {

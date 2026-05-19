@@ -220,7 +220,7 @@ export async function loadWikiRuleSummaries(status, keys = []) {
   return summaries;
 }
 
-export function contractUnderstandingNotice(status, action = 'write-oriented wiki workflow') {
+export function contractUnderstandingNotice(status, action = 'structure-dependent wiki workflow') {
   const understanding = status?.understanding || status?.contract?.understanding;
   if (!understanding) return null;
   const score = Number.isInteger(understanding.score) ? understanding.score : 0;
@@ -231,7 +231,7 @@ export function contractUnderstandingNotice(status, action = 'write-oriented wik
     requiresClarification: true,
     score,
     workflow,
-    prompt: understanding.handoff?.prompt || 'Run a Wiki-specific Deep Interview before write-oriented wiki workflows.',
+    prompt: understanding.handoff?.prompt || 'Run a Wiki-specific Deep Interview before structure-dependent wiki workflows.',
     missingDimensions: (understanding.missingDimensions || []).map((item) => ({
       key: item.key,
       label: item.label,
