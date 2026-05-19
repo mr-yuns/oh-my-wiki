@@ -2,6 +2,7 @@ import { lstat, mkdir, open, readdir, readFile, realpath } from 'node:fs/promise
 import path from 'node:path';
 import { buildWikiStatus, loadWikiRuleSummaries } from './contract.mjs';
 import { pathExists, writeTextFileAtomic } from '../utils/fs.js';
+import { assertSafeExistingDirectory, assertSafeExistingFile, assertSafeOptionalOwmDirectory, isInsidePath } from './safety.mjs';
 
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx']);
 const DRAFTS_RELATIVE_ROOT = path.join('.omw', 'ingest-drafts');
@@ -37,7 +38,7 @@ export async function listRawQueue({ config }) {
 }
 
 export async function createIngestPreview({ config, rawRef, options = {} }) {
-  await assertSafeOwmDirectory(config?.wikiPath || '');
+  await assertSafeOptionalOwmDirectory(config?.wikiPath || '');
   const status = await buildWikiStatus(config);
   if (!status.ok) throw new Error(`Wiki is not ready: ${status.issues.join('; ')}`);
   const rawPath = await resolveRawRef(status, rawRef);
@@ -70,23 +71,6 @@ export async function createIngestPreview({ config, rawRef, options = {} }) {
         : 'Review the contract.rules operating notes before writing promoted notes.',
     },
   };
-}
-
-async function assertSafeOwmDirectory(wikiPath) {
-  if (!wikiPath) return;
-  const omwRoot = path.join(wikiPath, '.omw');
-  if (!(await pathExists(omwRoot))) return;
-  const omwStat = await lstat(omwRoot);
-  if (omwStat.isSymbolicLink() || !omwStat.isDirectory()) {
-    throw new Error(`.omw directory must be a real directory: ${omwRoot}`);
-  }
-  const [wikiRealPath, omwRealPath] = await Promise.all([
-    realpath(wikiPath),
-    realpath(omwRoot),
-  ]);
-  if (!isInsidePath(wikiRealPath, omwRealPath)) {
-    throw new Error(`.omw directory must stay inside the wiki: ${omwRoot}`);
-  }
 }
 
 async function maybeWriteIngestDraft({ status, rawRelativePath, title, excerpt, rules, options }) {
@@ -146,20 +130,6 @@ async function prepareSafeDraftRoot(status, draftRoot) {
   } else {
     await mkdir(draftRoot);
     await assertSafeExistingDirectory(status, draftRoot, 'ingest draft root');
-  }
-}
-
-async function assertSafeExistingDirectory(status, directoryPath, label) {
-  const directoryStat = await lstat(directoryPath);
-  if (directoryStat.isSymbolicLink() || !directoryStat.isDirectory()) {
-    throw new Error(`${label} must be a real directory: ${path.relative(status.wikiPath, directoryPath) || '.'}`);
-  }
-  const [wikiRealPath, directoryRealPath] = await Promise.all([
-    realpath(status.wikiPath),
-    realpath(directoryPath),
-  ]);
-  if (!isInsidePath(wikiRealPath, directoryRealPath)) {
-    throw new Error(`${label} must stay inside the wiki: ${path.relative(status.wikiPath, directoryPath) || '.'}`);
   }
 }
 
@@ -461,24 +431,11 @@ function promotedState(status) {
 }
 
 async function assertSafeRawRoot(status) {
-  const rawRootStat = await lstat(status.raw.rootPath);
-  if (rawRootStat.isSymbolicLink() || !rawRootStat.isDirectory()) {
-    throw new Error(`Raw root must be a real directory: ${path.relative(status.wikiPath, status.raw.rootPath)}`);
-  }
-  const [wikiRealPath, rawRootRealPath] = await Promise.all([
-    realpath(status.wikiPath),
-    realpath(status.raw.rootPath),
-  ]);
-  if (!isInsidePath(wikiRealPath, rawRootRealPath)) {
-    throw new Error(`Raw root must stay inside the wiki: ${path.relative(status.wikiPath, status.raw.rootPath)}`);
-  }
+  await assertSafeExistingDirectory(status, status.raw.rootPath, 'Raw root');
 }
 
 async function safeRawFilePath(status, candidate) {
-  const rawStat = await lstat(candidate);
-  if (rawStat.isSymbolicLink() || !rawStat.isFile()) {
-    throw new Error(`Raw note must be a real file: ${path.relative(status.wikiPath, candidate)}`);
-  }
+  await assertSafeExistingFile(status, candidate, 'Raw note');
   const [rawRootRealPath, rawFileRealPath] = await Promise.all([
     realpath(status.raw.rootPath),
     realpath(candidate),
@@ -487,11 +444,6 @@ async function safeRawFilePath(status, candidate) {
     throw new Error(`Raw note must stay inside the Raw root: ${path.relative(status.wikiPath, candidate)}`);
   }
   return candidate;
-}
-
-function isInsidePath(parent, child) {
-  const relative = path.relative(parent, child);
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
 async function markdownFiles(root) {
