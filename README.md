@@ -1,37 +1,61 @@
-# Oh My Wiki
+# Oh My Wiki (OMW)
 
-Oh My Wiki (OMW) is a local-first runtime for Markdown knowledge bases.
-It gives a plain folder of Markdown files a practical agent workflow:
-search, capture, Raw-note queues, ingest previews, daily reports, Codex
-and Claude Code hooks, and optional wrappers for OMX/OMC.
+[![npm version](https://img.shields.io/npm/v/oh-my-wiki?color=cb3837)](https://www.npmjs.com/package/oh-my-wiki)
+[![npm downloads](https://img.shields.io/npm/dm/oh-my-wiki?color=blue)](https://www.npmjs.com/package/oh-my-wiki)
+[![CI](https://github.com/mr-yuns/oh-my-wiki/actions/workflows/ci.yml/badge.svg)](https://github.com/mr-yuns/oh-my-wiki/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org)
+
+**Local-first wiki runtime for agent-assisted Markdown knowledge bases.**
+
+OMW turns a plain Markdown folder into a practical knowledge workflow for
+agents and humans: contract generation, search, capture, Raw-note queues,
+ingest previews, daily reports, validation, Codex skills, Claude Code skills,
+and optional wrapper commands for
+[OMX](https://github.com/Yeachan-Heo/oh-my-codex) and
+[OMC](https://github.com/Yeachan-Heo/oh-my-claudecode).
 
 OMW is intentionally not a hosted wiki, sync service, or database product.
-Your notes stay on disk. Your Git history stays yours. The runtime only
-adds a small local contract, a search index when available, and generated
-helper files inside the connected wiki.
+Your notes stay on disk. Your Git history stays yours. The runtime only adds a
+small local contract, a search index when available, and generated helper files
+inside the connected wiki.
+
+**Quick links:** [Installation](#installation) |
+[Quick Start](#quick-start) | [Commands](#commands) |
+[Wiki Contract](docs/wiki-contract.md) | [Release Policy](docs/release.md) |
+[Contributing](CONTRIBUTING.md)
+
+**Related projects:** OMW is designed to complement
+[oh-my-codex (OMX)](https://github.com/Yeachan-Heo/oh-my-codex) and
+[oh-my-claudecode (OMC)](https://github.com/Yeachan-Heo/oh-my-claudecode).
+Those projects orchestrate agent sessions; OMW gives those sessions a durable,
+review-first place to store useful knowledge.
 
 ## Why OMW
 
-LLM-assisted work produces a lot of useful context, but most of it vanishes
-inside chat transcripts. OMW helps you keep the durable parts without turning
-your wiki into an application-specific silo.
+LLM-assisted work produces useful context, but most of it disappears inside
+chat transcripts. OMW helps you keep the durable parts without turning your
+wiki into an application-specific silo.
 
-- Use any Markdown wiki, not only the bundled template.
-- Start from an empty folder and let OMW create a safe Raw-note area.
-- Search Markdown notes through SQLite FTS when supported, with scan fallback.
-- Capture agent sessions, discussions, and daily reports as reviewable Raw notes.
-- Generate ingest previews before promoting Raw notes into durable knowledge.
-- Install Codex and Claude Code skills that teach agents how to use the wiki.
-- Keep all data local and Git-friendly.
+Use OMW when you want to:
+
+- connect any Markdown wiki, not only the bundled template
+- start from an empty folder and create a safe Raw-note area
+- search Markdown notes through SQLite FTS when supported, with scan fallback
+- capture agent sessions, discussions, and daily reports as reviewable Raw notes
+- generate ingest previews before promoting Raw notes into durable knowledge
+- install Codex and Claude Code skills that teach agents how to use the wiki
+- keep all knowledge local, inspectable, and Git-friendly
 
 ## Status
 
 OMW is early but usable. The current release focuses on local CLI workflows,
-contract generation, search, capture, queue inspection, ingest previews,
-daily reports, wiki reports, validation, hooks, and managed skills.
+contract generation, search, capture, queue inspection, ingest previews, daily
+reports, wiki reports, validation, hooks, npm release automation, and managed
+skills.
 
 The project is suitable for people who are comfortable with a Markdown folder
-and a terminal. It does not yet provide a web UI or hosted collaboration layer.
+and a terminal. It does not provide a web UI or hosted collaboration layer.
 
 ## Requirements
 
