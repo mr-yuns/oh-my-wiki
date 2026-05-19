@@ -5,6 +5,7 @@ import path from 'node:path';
 import { promisify } from 'node:util';
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import { contractUnderstandingNotice } from '../src/wiki/contract.mjs';
 
 const execFileAsync = promisify(execFile);
 const cliPath = path.resolve('src/cli/omw.js');
@@ -1451,6 +1452,46 @@ test('wiki contract explain summarizes contract shape and schema is valid JSON',
     /Command failed/,
   );
 
+  const inconsistentComplete = await setupIsolatedWiki('omw-contract-inconsistent-complete-', 'en');
+  const inconsistentCompletePath = path.join(inconsistentComplete.wiki, '.omw/contract.json');
+  const inconsistentCompleteContract = JSON.parse(await readFile(inconsistentCompletePath, 'utf8'));
+  inconsistentCompleteContract.understanding.score = 75;
+  inconsistentCompleteContract.understanding.complete = true;
+  inconsistentCompleteContract.understanding.handoff = { recommended: false, workflow: null, prompt: '' };
+  await writeFile(inconsistentCompletePath, `${JSON.stringify(inconsistentCompleteContract, null, 2)}\n`);
+  await assert.rejects(
+    async () => {
+      try {
+        await execFileAsync(process.execPath, [cliPath, 'wiki', 'contract', '--validate', '--json'], { env: inconsistentComplete.env });
+      } catch (error) {
+        assert.match(error.stdout, /understanding\.complete true requires understanding\.score to be 100/);
+        assert.match(error.stdout, /understanding\.handoff\.recommended must be true when understanding\.score is below 100/);
+        throw error;
+      }
+    },
+    /Command failed/,
+  );
+
+  const inconsistentScore = await setupIsolatedWiki('omw-contract-inconsistent-score-', 'en');
+  const inconsistentScorePath = path.join(inconsistentScore.wiki, '.omw/contract.json');
+  const inconsistentScoreContract = JSON.parse(await readFile(inconsistentScorePath, 'utf8'));
+  inconsistentScoreContract.understanding.score = 100;
+  inconsistentScoreContract.understanding.complete = false;
+  inconsistentScoreContract.understanding.handoff = { recommended: true, workflow: 'wiki-deep-interview', prompt: 'Clarify wiki structure.' };
+  await writeFile(inconsistentScorePath, `${JSON.stringify(inconsistentScoreContract, null, 2)}\n`);
+  await assert.rejects(
+    async () => {
+      try {
+        await execFileAsync(process.execPath, [cliPath, 'wiki', 'contract', '--validate', '--json'], { env: inconsistentScore.env });
+      } catch (error) {
+        assert.match(error.stdout, /understanding\.score 100 requires understanding\.complete to be true/);
+        assert.match(error.stdout, /understanding\.handoff\.recommended must not be true when understanding\.score is 100/);
+        throw error;
+      }
+    },
+    /Command failed/,
+  );
+
   const invalid = await setupIsolatedWiki('omw-contract-invalid-', 'en');
   const contractPath = path.join(invalid.wiki, '.omw/contract.json');
   const invalidContract = JSON.parse(await readFile(contractPath, 'utf8'));
@@ -1500,8 +1541,24 @@ test('wiki contract explain summarizes contract shape and schema is valid JSON',
   assert.equal(schema.title, 'Oh My Wiki Contract');
   assert(schema.required.includes('raw'));
   assert.equal(schema.properties.understanding.properties.score.maximum, 100);
+  assert(Array.isArray(schema.properties.understanding.allOf));
   assert(schema.properties.search.required.includes('excludeDirs'));
   assert.equal(schema.properties.raw.properties.root.$ref, '#/$defs/wikiRelativePath');
+});
+
+test('contract understanding notice treats inconsistent completion as incomplete', () => {
+  const notice = contractUnderstandingNotice({
+    understanding: {
+      score: 75,
+      complete: true,
+      handoff: { recommended: false, workflow: null, prompt: '' },
+      missingDimensions: [{ key: 'rules', label: 'Rules', reason: 'not detected', question: 'Where are the rules?' }],
+    },
+  }, 'capture write');
+  assert.equal(notice.requiresClarification, true);
+  assert.equal(notice.score, 75);
+  assert.equal(notice.workflow, 'wiki-deep-interview');
+  assert.match(notice.message, /below 100/);
 });
 
 test('wiki contract explains partial understanding for unfamiliar personal wikis', async () => {

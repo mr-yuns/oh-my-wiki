@@ -219,13 +219,16 @@ export async function loadWikiRuleSummaries(status, keys = []) {
 
 export function contractUnderstandingNotice(status, action = 'write-oriented wiki workflow') {
   const understanding = status?.understanding || status?.contract?.understanding;
-  if (!understanding || understanding.complete || understanding.score === 100 || !understanding.handoff?.recommended) return null;
-  const workflow = understanding.handoff.workflow || 'wiki-deep-interview';
+  if (!understanding) return null;
+  const score = Number.isInteger(understanding.score) ? understanding.score : 0;
+  const complete = understanding.complete === true && score === 100;
+  if (complete && !understanding.handoff?.recommended) return null;
+  const workflow = understanding.handoff?.workflow || 'wiki-deep-interview';
   return {
     requiresClarification: true,
-    score: Number.isInteger(understanding.score) ? understanding.score : 0,
+    score,
     workflow,
-    prompt: understanding.handoff.prompt || 'Run a Wiki-specific Deep Interview before write-oriented wiki workflows.',
+    prompt: understanding.handoff?.prompt || 'Run a Wiki-specific Deep Interview before write-oriented wiki workflows.',
     missingDimensions: (understanding.missingDimensions || []).map((item) => ({
       key: item.key,
       label: item.label,
@@ -330,9 +333,25 @@ function validateUnderstanding(value, issues) {
   } else if (typeof value.complete !== 'boolean') {
     issues.push('understanding.complete must be a boolean');
   }
+  if (Number.isInteger(value.score) && typeof value.complete === 'boolean') {
+    if (value.complete && value.score !== 100) issues.push('understanding.complete true requires understanding.score to be 100');
+    if (!value.complete && value.score === 100) issues.push('understanding.score 100 requires understanding.complete to be true');
+  }
   validateOptionalObjectArray(value, 'missingDimensions', issues, 'understanding.missingDimensions');
   validateOptionalObjectArray(value, 'dimensions', issues, 'understanding.dimensions');
   if (Object.hasOwn(value, 'handoff')) validateUnderstandingHandoff(value.handoff, issues);
+  if (Number.isInteger(value.score) && value.score < 100) {
+    if (!isPlainObject(value.handoff)) {
+      issues.push('understanding.handoff is required when understanding.score is below 100');
+    } else {
+      if (value.handoff.recommended !== true) issues.push('understanding.handoff.recommended must be true when understanding.score is below 100');
+      if (typeof value.handoff.workflow !== 'string' || value.handoff.workflow.trim() === '') issues.push('understanding.handoff.workflow is required when understanding.score is below 100');
+      if (typeof value.handoff.prompt !== 'string' || value.handoff.prompt.trim() === '') issues.push('understanding.handoff.prompt is required when understanding.score is below 100');
+    }
+  }
+  if (Number.isInteger(value.score) && value.score === 100 && isPlainObject(value.handoff) && value.handoff.recommended === true) {
+    issues.push('understanding.handoff.recommended must not be true when understanding.score is 100');
+  }
 }
 
 function validateUnderstandingHandoff(value, issues) {

@@ -63,6 +63,32 @@
           "additionalProperties": true
         }
       },
+      "allOf": [
+        {
+          "if": { "properties": { "score": { "const": 100 } }, "required": ["score"] },
+          "then": { "properties": { "complete": { "const": true } }, "required": ["complete"] }
+        },
+        {
+          "if": { "properties": { "complete": { "const": true } }, "required": ["complete"] },
+          "then": { "properties": { "score": { "const": 100 } }, "required": ["score"] }
+        },
+        {
+          "if": { "properties": { "score": { "maximum": 99 } }, "required": ["score"] },
+          "then": {
+            "required": ["handoff"],
+            "properties": {
+              "handoff": {
+                "required": ["recommended", "workflow", "prompt"],
+                "properties": {
+                  "recommended": { "const": true },
+                  "workflow": { "type": "string", "minLength": 1 },
+                  "prompt": { "type": "string", "minLength": 1 }
+                }
+              }
+            }
+          }
+        }
+      ],
       "additionalProperties": true
     },
     "rules": {
