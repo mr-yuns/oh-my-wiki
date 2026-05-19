@@ -102,7 +102,14 @@
               "agentTemplate": { "$ref": "#/$defs/wikiRelativePath" },
               "humanTemplate": { "$ref": "#/$defs/wikiRelativePath" },
               "template": { "$ref": "#/$defs/wikiRelativePath" },
-              "naming": { "type": "object" }
+              "naming": {
+                "type": "object",
+                "properties": {
+                  "memberFolderPattern": { "$ref": "#/$defs/wikiRelativePatternPath" },
+                  "reportFilePattern": { "$ref": "#/$defs/wikiRelativeFilePattern" }
+                },
+                "additionalProperties": true
+              }
             },
             "additionalProperties": true
           }
@@ -165,6 +172,17 @@
     "wikiRelativePathOrEmpty": {
       "type": "string",
       "pattern": "^(|(?!(?:/|[A-Za-z]:[\\\\/]|\\\\\\\\))(?!(?:.*(^|[\\\\/])\\.\\.([\\\\/]|$)))(?!.*\\u0000).+)$"
+    },
+    "wikiRelativePatternPath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:[\\\\/])(?!\\\\\\\\)(?!.*(^|[\\\\/])(?:\\.|\\.\\.)([\\\\/]|$))(?!.*\\u0000).+$"
+    },
+    "wikiRelativeFilePattern": {
+      "type": "string",
+      "minLength": 1,
+      "not": { "enum": [".", ".."] },
+      "pattern": "^(?!/)(?![A-Za-z]:[\\\\/])(?!\\\\\\\\)(?!.*[\\\\/])(?!.*\\u0000).+$"
     }
   }
 }

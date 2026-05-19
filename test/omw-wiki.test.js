@@ -740,6 +740,56 @@ test('wiki daily refuses symlinked intermediate member ancestors before mkdir', 
   assert.equal((await readdir(external)).length, 0);
 });
 
+test('wiki daily refuses contract member folder traversal patterns', async () => {
+  const { env, wiki } = await setupIsolatedWiki('omw-daily-member-traversal-', 'en');
+  await updateWikiContract(wiki, (contract) => {
+    contract.raw.types.daily_report.naming.memberFolderPattern = '../outside/{author}';
+    return contract;
+  });
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      cliPath,
+      'wiki',
+      'daily',
+      '--author',
+      'Alex',
+      '--team',
+      'Docs',
+      '--date',
+      '2026-05-18',
+      '--body',
+      'Traversal pattern must not be accepted.',
+    ], { env }),
+    /memberFolderPattern must be a safe relative pattern/,
+  );
+});
+
+test('wiki daily refuses contract report file traversal patterns', async () => {
+  const { env, wiki } = await setupIsolatedWiki('omw-daily-file-traversal-', 'en');
+  await updateWikiContract(wiki, (contract) => {
+    contract.raw.types.daily_report.naming.reportFilePattern = '../outside.md';
+    return contract;
+  });
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      cliPath,
+      'wiki',
+      'daily',
+      '--author',
+      'Alex',
+      '--team',
+      'Docs',
+      '--date',
+      '2026-05-18',
+      '--body',
+      'Traversal file pattern must not be accepted.',
+    ], { env }),
+    /reportFilePattern must be a safe relative pattern/,
+  );
+});
+
 test('wiki daily dry-run refuses symlinked Raw type folders before listing members', async () => {
   const { root, env, wiki } = await setupIsolatedWiki('omw-daily-dry-raw-symlink-', 'en');
   const dailyRoot = path.join(wiki, 'en/01. Inbox/01-01. Raw/01-01-02. Daily Reports');

@@ -84,6 +84,7 @@ async function ensureMemberFolder(status, root, author, naming = {}, options = {
     .replaceAll('{sequence}', next)
     .replaceAll('{author}', sanitizeName(author))
     .replaceAll('{memberPrefix}', memberPrefix);
+  assertSafeRelativePatternResult(folder, 'daily member folder', { allowNested: true });
   if (!options.dryRun) {
     await ensureSafeDirectory(status, path.join(root, folder), 'Daily report member folder');
   }
@@ -364,12 +365,23 @@ function renderReportFileName(naming = {}, { author, memberFolder, reportDate })
   const yyyymmdd = reportDate.replaceAll('-', '');
   const safeAuthor = sanitizeName(author);
   const memberPrefix = String(memberFolder || '').match(/^(\d{2}(?:-\d{2})*)\. /)?.[1] || safeAuthor;
-  return (naming.reportFilePattern || '{author}-{YYYYMMDD}.md')
+  const fileName = (naming.reportFilePattern || '{author}-{YYYYMMDD}.md')
     .replaceAll('{memberPrefix}', memberPrefix)
     .replaceAll('{memberFolder}', sanitizeName(memberFolder || safeAuthor))
     .replaceAll('{author}', safeAuthor)
     .replaceAll('{YYYYMMDD}', yyyymmdd)
     .replaceAll('{reportDate}', reportDate);
+  assertSafeRelativePatternResult(fileName, 'daily report file name', { allowNested: false });
+  return fileName;
+}
+
+function assertSafeRelativePatternResult(value, label, options = {}) {
+  const text = String(value || '');
+  const normalized = text.replace(/\\/g, '/');
+  const segments = normalized.split('/');
+  if (!text || path.isAbsolute(text) || text.includes('\0') || (!options.allowNested && segments.length > 1) || segments.some((segment) => segment === '' || segment === '.' || segment === '..')) {
+    throw new Error(`${label} must be a safe relative path`);
+  }
 }
 
 function escapeRegExp(value) {

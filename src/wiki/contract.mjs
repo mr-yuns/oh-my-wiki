@@ -204,6 +204,7 @@ export function validateWikiContractShape(contract) {
         requireOptionalWikiRelativePath(type, 'agentTemplate', issues, `raw.types.${key}.agentTemplate`);
         requireOptionalWikiRelativePath(type, 'humanTemplate', issues, `raw.types.${key}.humanTemplate`);
         requireOptionalWikiRelativePath(type, 'template', issues, `raw.types.${key}.template`);
+        if (key === 'daily_report') validateDailyReportNaming(type.naming, issues, `raw.types.${key}.naming`);
       }
     }
   }
@@ -285,6 +286,33 @@ function requireIntegerEnum(object, key, values, issues, label = key) {
   if (!Number.isInteger(object[key]) || !values.includes(object[key])) {
     issues.push(`${label} must be one of: ${values.join(', ')}`);
   }
+}
+
+function validateDailyReportNaming(value, issues, label) {
+  if (value === undefined) return;
+  if (!isPlainObject(value)) {
+    issues.push(`${label} must be an object`);
+    return;
+  }
+  validateOptionalPathPattern(value, 'memberFolderPattern', issues, `${label}.memberFolderPattern`, { allowNested: true });
+  validateOptionalPathPattern(value, 'reportFilePattern', issues, `${label}.reportFilePattern`, { allowNested: false });
+}
+
+function validateOptionalPathPattern(object, key, issues, label, options = {}) {
+  if (!Object.hasOwn(object, key)) return;
+  if (typeof object[key] !== 'string') {
+    issues.push(`${label} must be a string`);
+    return;
+  }
+  if (!isSafeRelativePatternPath(object[key], options)) issues.push(`${label} must be a safe relative pattern`);
+}
+
+function isSafeRelativePatternPath(value, options = {}) {
+  if (!value || value.includes('\0')) return false;
+  if (path.isAbsolute(value) || /^[A-Za-z]:[\\/]/.test(value) || value.startsWith('\\\\')) return false;
+  const segments = value.split(/[\\/]+/);
+  if (!options.allowNested && segments.length > 1) return false;
+  return !segments.some((segment) => segment === '' || segment === '.' || segment === '..');
 }
 
 function requireString(object, key, issues, label = key) {

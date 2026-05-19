@@ -123,6 +123,11 @@ Windows drive paths, UNC paths, and NUL bytes are invalid. `search.root` may be
 an empty string to mean the wiki root; other path fields should name a concrete
 wiki-relative file or directory.
 
+Daily naming patterns are also path-checked. `memberFolderPattern` may include
+nested folders under the daily Raw type folder, but it must not be absolute or
+contain `.` / `..` path segments. `reportFilePattern` must render to a file name,
+not a nested path.
+
 ## Ingest Section
 
 `ingest.pendingStates` tells `omw queue` which Raw notes need attention.
