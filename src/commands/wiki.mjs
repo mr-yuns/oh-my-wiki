@@ -236,7 +236,7 @@ function explainWikiContract(status) {
       score: 0,
       complete: false,
       missingDimensions: [],
-      handoff: { recommended: true, workflow: 'wiki-deep-interview', prompt: 'Refresh the wiki contract before write-oriented wiki workflows.' },
+      handoff: { recommended: true, workflow: 'wiki-deep-interview', prompt: 'Refresh the wiki contract before Raw-dependent wiki workflows.' },
     },
     capabilities: contract.capabilities || {},
     issues: status.issues || [],

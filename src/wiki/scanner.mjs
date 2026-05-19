@@ -758,7 +758,7 @@ function evaluateUnderstanding({ profile, raw, rules, daily, templates, search, 
       recommended: score < 100,
       workflow: score < 100 ? 'wiki-deep-interview' : null,
       prompt: score < 100
-        ? 'Run a Wiki-specific Deep Interview before write-oriented wiki workflows so OMW can raise this contract understanding score to 100%.'
+        ? 'Run a Wiki-specific Deep Interview before Raw-dependent wiki workflows so OMW can raise this contract understanding score to 100%.'
         : '',
     },
   };

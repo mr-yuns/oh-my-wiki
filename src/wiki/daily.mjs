@@ -1,6 +1,6 @@
 import { open, readdir, readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { assertNoRawAmbiguityForWrite, buildWikiStatus, contractUnderstandingNotice } from './contract.mjs';
+import { assertNoRawAmbiguityForWorkflow, buildWikiStatus, contractUnderstandingNotice } from './contract.mjs';
 import { frontmatterScalar, redactSensitiveText } from './redaction.mjs';
 import { renderWikiTemplate } from './template.mjs';
 import { assertRawNoteSafety } from './validation.mjs';
@@ -18,7 +18,7 @@ export async function createDailyReport({ config, author, team, date, body = '',
   const canonicalAuthor = resolveAuthorName(author, dailyType.naming);
   const platform = options.platform || 'manual';
   const dryRun = Boolean(options.dryRun);
-  assertNoRawAmbiguityForWrite(status, 'daily report workflow');
+  assertNoRawAmbiguityForWorkflow(status, 'daily report workflow');
   await assertSafeExistingDirectory(status, status.raw.rootPath, 'Raw root');
   if (dailyType.folderPath && await pathExists(dailyType.folderPath)) {
     await assertSafeExistingDirectory(status, dailyType.folderPath, 'Raw type folder');
