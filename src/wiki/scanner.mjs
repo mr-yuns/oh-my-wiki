@@ -57,6 +57,7 @@ export async function scanWikiContract(wikiPath, options = {}) {
       naming: raw.naming,
       types: raw.types,
       ingestStates: raw.ingestStates,
+      ambiguities: raw.ambiguities,
     },
     ingest: {
       pendingStates: raw.pendingStates,
@@ -108,7 +109,9 @@ function detectSearch(files, language, profile, directories, templates = {}) {
 async function detectRaw({ wikiPath, files, directories, templates, language, writeManaged }) {
   const hasRequestedLanguageRoot = hasLanguageRoot(files, directories, language);
   const templatePaths = new Set(Object.values(templates).map((file) => file.relativePath));
+  const rawRootCandidates = detectRawRootCandidates(directories, files, language, templatePaths);
   const rawRoot = detectRawRootFromDirectories(directories, files, language, templatePaths) || detectRawRoot(files, language, hasRequestedLanguageRoot, templatePaths) || detectRawRootFromStrongMarkers(files, language, hasRequestedLanguageRoot, templatePaths) || '.omw/raw';
+  const ambiguities = detectRawRootAmbiguities(rawRootCandidates, rawRoot);
   const managed = rawRoot.startsWith('.omw/');
   const rawCandidates = detectRawCandidateFiles(files, language, rawRoot, templates, hasRequestedLanguageRoot);
   const noteTypes = detectRawNoteTypes(rawCandidates, language);
@@ -149,8 +152,74 @@ async function detectRaw({ wikiPath, files, directories, templates, language, wr
     types,
     ingestStates: ingestStates.length > 0 ? ingestStates : defaultIngestStates(language),
     pendingStates,
+    ambiguities,
     fallbacksApplied: [...new Set(fallbacksApplied.concat(managed ? ['root:.omw/raw'] : []))],
   };
+}
+
+function detectRawRootCandidates(directories, files, language, templatePaths = new Set()) {
+  const hasRequestedLanguageRoot = hasLanguageRoot(files, directories, language);
+  const candidates = new Map();
+  const addCandidate = (root, score, source, evidence) => {
+    if (!root || score <= 0 || !rawRootMatchesLanguage(root, language, hasRequestedLanguageRoot)) return;
+    const current = candidates.get(root) || { root, score: 0, sources: new Set(), evidence: new Set() };
+    current.score = Math.max(current.score, score);
+    current.sources.add(source);
+    if (evidence) current.evidence.add(evidence);
+    candidates.set(root, current);
+  };
+
+  for (const dir of directories) {
+    if (isTemplatePath(dir)) continue;
+    const rawScore = scoreRawSegment(path.basename(dir));
+    const score = rawScore > 0 ? rawScore + (dir.split('/')[0] === language ? 2 : 0) : 0;
+    if (score > 0 && hasRawRootEvidence(dir, directories, files, templatePaths)) {
+      addCandidate(dir, score, 'directory', dir);
+    }
+  }
+
+  for (const file of files) {
+    if (templatePaths.has(file.relativePath) || isTemplatePath(file.relativePath) || !hasStrongRawMarker(file.frontmatter)) continue;
+    const root = inferRawRootFromMarkedFile(file);
+    if (!root) continue;
+    const score = scoreRawSegment(path.basename(root)) + (file.segments[0] === language ? 2 : 0) + (file.frontmatter.rawType || file.frontmatter['raw유형'] ? 3 : 1);
+    addCandidate(root, score, 'frontmatter', file.relativePath);
+  }
+
+  return [...candidates.values()]
+    .map((candidate) => ({
+      root: candidate.root,
+      score: candidate.score,
+      sources: [...candidate.sources].sort(),
+      evidence: [...candidate.evidence].sort().slice(0, 5),
+    }))
+    .sort((a, b) => b.score - a.score || a.root.length - b.root.length || a.root.localeCompare(b.root));
+}
+
+function detectRawRootAmbiguities(candidates, selectedRoot) {
+  if (!selectedRoot || selectedRoot.startsWith('.omw/')) return [];
+  const selected = candidates.find((candidate) => candidate.root === selectedRoot);
+  if (!selected) return [];
+  const competing = candidates
+    .filter((candidate) => candidate.root !== selectedRoot)
+    .filter((candidate) => candidate.score === selected.score)
+    .filter((candidate) => !isSameRawRootFamily(candidate.root, selectedRoot));
+  if (competing.length === 0) return [];
+  return [selected, ...competing].map((candidate) => ({
+    kind: 'raw-root',
+    root: candidate.root,
+    score: candidate.score,
+    sources: candidate.sources,
+    evidence: candidate.evidence,
+  }));
+}
+
+function isSameRawRootFamily(left, right) {
+  return left.startsWith(`${right}/`) || right.startsWith(`${left}/`);
+}
+
+function isTemplatePath(relativePath) {
+  return /(^|\/)[^/]*(templates?|템플릿)[^/]*(\/|$)/i.test(relativePath);
 }
 
 function detectRawRoot(files, language, hasRequestedLanguageRoot = false, templatePaths = new Set()) {
@@ -590,6 +659,7 @@ function evaluateCapabilities({ files, raw, rules, daily, templates, search }) {
 function evaluateUnderstanding({ profile, raw, rules, daily, templates, search, capabilities }) {
   const fallbackSet = new Set(raw.fallbacksApplied || []);
   const rawFallbacksApplied = hasRawFallbacks(fallbackSet);
+  const rawAmbiguous = (raw.ambiguities || []).length > 0;
   const templateFallbacksApplied = hasTemplateFallbacks(fallbackSet);
   const hasRawTypes = raw.root && Object.keys(raw.types || {}).length > 0;
   const templatesReady = Boolean(capabilities.templates?.ready);
@@ -616,9 +686,9 @@ function evaluateUnderstanding({ profile, raw, rules, daily, templates, search, 
       key: 'raw',
       label: 'Raw capture area',
       weight: 15,
-      score: hasRawTypes ? rawFallbacksApplied ? 8 : 15 : 0,
-      ready: Boolean(hasRawTypes && !rawFallbacksApplied),
-      evidence: [raw.root ? `root:${raw.root}` : '', ...Object.entries(raw.types || {}).map(([key, type]) => `${key}:${type.folder}`)].filter(Boolean),
+      score: hasRawTypes ? rawFallbacksApplied || rawAmbiguous ? 8 : 15 : 0,
+      ready: Boolean(hasRawTypes && !rawFallbacksApplied && !rawAmbiguous),
+      evidence: [raw.root ? `root:${raw.root}` : '', ...Object.entries(raw.types || {}).map(([key, type]) => `${key}:${type.folder}`), ...(raw.ambiguities || []).map((item) => `ambiguous:${item.root}`)].filter(Boolean),
       question: 'Where do captured Raw notes belong, and which folders map to each Raw type?',
     }),
     scoreDimension({

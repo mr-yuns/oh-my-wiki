@@ -113,6 +113,10 @@ under `understanding` for automation.
 `raw.root` is the path, relative to the wiki root, where Raw notes live.
 `raw.noteTypes` lists frontmatter `type` values treated as Raw notes.
 `raw.ingestStates` lists known Raw states.
+`raw.ambiguities` lists equally plausible Raw roots when OMW cannot safely pick
+one with full confidence. Any ambiguity keeps `understanding.complete` false and
+routes write-oriented workflows through the Wiki-specific Deep Interview
+handoff.
 
 `raw.types` maps OMW logical capture types to folders and templates:
 

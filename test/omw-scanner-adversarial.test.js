@@ -666,6 +666,45 @@ test('scanner supports Karpathy wiki index in mdx form', async () => {
   assert.equal(contract.rules.knowledgeMap.path, 'wiki/index.mdx');
 });
 
+test('scanner routes ambiguous multi-root raw layouts through contract handoff', async () => {
+  const { wiki, env, setupArgs } = await setupWiki('omw-ambiguous-raw-root-scanner-');
+  await mkdir(path.join(wiki, 'team-a/raw/sessions'), { recursive: true });
+  await mkdir(path.join(wiki, 'team-b/raw/sessions'), { recursive: true });
+  await mkdir(path.join(wiki, 'notes'), { recursive: true });
+  await writeFile(path.join(wiki, 'team-a/raw/sessions/one.md'), [
+    '---',
+    'type: RawA',
+    'rawType: agent_session',
+    'ingestState: captured-a',
+    '---',
+    '# Team A Raw',
+    '',
+    'Team A raw body.',
+    '',
+  ].join('\n'));
+  await writeFile(path.join(wiki, 'team-b/raw/sessions/two.md'), [
+    '---',
+    'type: RawB',
+    'rawType: agent_session',
+    'ingestState: captured-b',
+    '---',
+    '# Team B Raw',
+    '',
+    'Team B raw body.',
+    '',
+  ].join('\n'));
+  await writeFile(path.join(wiki, 'notes/index.md'), '# Index\n\nDurable knowledge.\n');
+
+  await execFileAsync(process.execPath, setupArgs, { env });
+  const contract = JSON.parse(await readFile(path.join(wiki, '.omw/contract.json'), 'utf8'));
+  assert.equal(contract.understanding.complete, false);
+  assert(contract.understanding.score < 100);
+  assert.equal(contract.understanding.handoff.recommended, true);
+  assert.equal(contract.understanding.handoff.workflow, 'wiki-deep-interview');
+  assert(contract.understanding.missingDimensions.some((item) => item.key === 'raw'));
+  assert.deepEqual(contract.raw.ambiguities.map((item) => item.root).sort(), ['team-a/raw', 'team-b/raw']);
+});
+
 test('scanner preserves custom contract extensions while regenerating scanner-owned sections', async () => {
   const { wiki, env, setupArgs } = await setupWiki('omw-custom-extension-scanner-');
   await mkdir(path.join(wiki, 'raw/sessions'), { recursive: true });

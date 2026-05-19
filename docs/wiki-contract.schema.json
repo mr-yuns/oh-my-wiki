@@ -143,6 +143,27 @@
         "ingestStates": {
           "type": "array",
           "items": { "type": "string" }
+        },
+        "ambiguities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["kind", "root", "score"],
+            "properties": {
+              "kind": { "type": "string" },
+              "root": { "$ref": "#/$defs/wikiRelativePath" },
+              "score": { "type": "integer" },
+              "sources": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "evidence": {
+                "type": "array",
+                "items": { "$ref": "#/$defs/wikiRelativePath" }
+              }
+            },
+            "additionalProperties": true
+          }
         }
       },
       "additionalProperties": true
