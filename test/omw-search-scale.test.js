@@ -17,7 +17,7 @@ const MIN_AVERAGE_NOTE_SIZE = 1024;
 const INDEXED_P95_LIMIT_MS = 750;
 const SCAN_P95_LIMIT_MS = 8_000;
 
-test('wiki search scale, accuracy, and token discipline gates', async () => {
+test('wiki search scale, accuracy, and token discipline gates', async (t) => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'omw-search-scale-'));
   const home = path.join(root, 'state');
   const wiki = path.join(root, 'wiki');
@@ -47,6 +47,10 @@ test('wiki search scale, accuracy, and token discipline gates', async () => {
   const config = { wikiPath: wiki, wikiLanguage: 'en' };
   const indexed = await runIndexedBenchmark(config, fixture);
   const scan = await runScanBenchmark(config, { ...fixture, seeded: fixture.seeded.slice(0, 5) });
+  t.diagnostic(JSON.stringify({
+    indexed: benchmarkSummary(indexed),
+    scan: benchmarkSummary(scan),
+  }, null, 2));
   const cliOutput = await execFileAsync(process.execPath, [cliPath, 'wiki', 'search', 'commonterm', '--backend', 'scan'], { env });
   const renderedResults = cliOutput.stdout.split('\n').filter((line) => line.startsWith('- notes/'));
   const renderedExcerpts = cliOutput.stdout.split('\n').filter((line) => line.startsWith('  ')).map((line) => line.trim());
@@ -58,12 +62,17 @@ test('wiki search scale, accuracy, and token discipline gates', async () => {
   assert(indexed.p95Ms <= INDEXED_P95_LIMIT_MS, benchmarkFailure('indexed', indexed, INDEXED_P95_LIMIT_MS));
   assert(indexed.top5Recall >= 0.90, `indexed top-5 recall ${indexed.top5Recall} < 0.90`);
   assert(indexed.top1Precision >= 0.75, `indexed top-1 precision ${indexed.top1Precision} < 0.75`);
+  assert(indexed.totalMatches.every((value) => Number.isInteger(value) && value >= 1));
+  assert(indexed.unfilteredTotalMatches.every((value) => Number.isInteger(value) && value >= 1));
   assert(indexed.excerptLengths.every((length) => length <= DEFAULT_EXCERPT_VISIBLE_LIMIT));
   assert(indexed.excerptsContainTerms);
 
   assert(scan.p95Ms <= SCAN_P95_LIMIT_MS, benchmarkFailure('scan', scan, SCAN_P95_LIMIT_MS));
   assert(scan.top5Recall >= 0.90, `scan top-5 recall ${scan.top5Recall} < 0.90`);
   assert(scan.top1Precision >= 0.75, `scan top-1 precision ${scan.top1Precision} < 0.75`);
+  assert(scan.totalMatches.every((value) => Number.isInteger(value) && value >= 1));
+  assert(scan.unfilteredTotalMatches.every((value) => Number.isInteger(value) && value >= 1));
+  assert(scan.unfilteredTotalExact.every(Boolean));
   assert(scan.excerptLengths.every((length) => length <= DEFAULT_EXCERPT_VISIBLE_LIMIT));
   assert(scan.excerptsContainTerms);
 
@@ -122,12 +131,18 @@ async function runSearchBenchmark({ config, fixture, backend, coldIndexBuildMs }
   const top5Hits = [];
   const top1Hits = [];
   const excerptLengths = [];
+  const totalMatches = [];
+  const unfilteredTotalMatches = [];
+  const unfilteredTotalExact = [];
   const failures = [];
   let excerptsContainTerms = true;
   for (const item of fixture.seeded) {
     const start = performance.now();
     const result = await searchWiki({ config, query: item.query, backend, limit: 5, refreshIndex: backend !== 'sqlite' });
     durations.push(performance.now() - start);
+    totalMatches.push(result.total);
+    unfilteredTotalMatches.push(result.unfilteredTotal);
+    unfilteredTotalExact.push(result.unfilteredTotalExact);
     const top5 = result.results.map((entry) => entry.relativePath);
     const top1 = top5[0] || '';
     const top5Hit = top5.includes(item.expectedPath);
@@ -158,9 +173,34 @@ async function runSearchBenchmark({ config, fixture, backend, coldIndexBuildMs }
     p95Ms: percentile(durations, 0.95),
     top5Recall: ratio(top5Hits),
     top1Precision: ratio(top1Hits),
+    totalMatches,
+    unfilteredTotalMatches,
+    unfilteredTotalExact,
     excerptLengths,
     excerptsContainTerms,
     failures,
+  };
+}
+
+function benchmarkSummary(benchmark) {
+  return {
+    backend: benchmark.backend,
+    environment: benchmark.environment,
+    fixture: {
+      noteCount: benchmark.fixture.noteCount,
+      averageNoteSize: Number(benchmark.fixture.averageNoteSize.toFixed(1)),
+    },
+    coldIndexBuildMs: Number(benchmark.coldIndexBuildMs.toFixed(1)),
+    warmQueryDurationsMs: benchmark.durations.map((value) => Number(value.toFixed(1))),
+    p50Ms: Number(benchmark.p50Ms.toFixed(1)),
+    p95Ms: Number(benchmark.p95Ms.toFixed(1)),
+    top1Precision: benchmark.top1Precision,
+    top5Recall: benchmark.top5Recall,
+    totalMatches: benchmark.totalMatches,
+    unfilteredTotalMatches: benchmark.unfilteredTotalMatches,
+    unfilteredTotalExact: benchmark.unfilteredTotalExact,
+    excerptLengthMax: Math.max(...benchmark.excerptLengths, 0),
+    excerptsContainTerms: benchmark.excerptsContainTerms,
   };
 }
 
