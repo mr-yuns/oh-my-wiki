@@ -473,6 +473,39 @@ test('wiki capture refuses symlinked Raw type folders before writing', async () 
   assert.equal((await readdir(external)).length, 0);
 });
 
+test('wiki capture refuses symlinked Raw templates before reading', async () => {
+  const { root, env, wiki } = await setupIsolatedWiki('omw-capture-template-symlink-', 'en');
+  const external = path.join(root, 'external-template.md');
+  const templatePath = path.join(wiki, 'en/08. Templates/08-01. Inbox/08-01-02. Human/08-01-02-02. Agent Session Raw Template.md');
+  await writeFile(external, [
+    '---',
+    'type: Raw',
+    'rawType: agent_session',
+    '---',
+    '',
+    '# {{title}}',
+    '',
+    '{{body}}',
+    '',
+  ].join('\n'));
+  await rm(templatePath, { force: true });
+  await symlink(external, templatePath);
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      cliPath,
+      'wiki',
+      'capture',
+      '--title',
+      'Blocked template capture',
+      '--body',
+      'This template must not be read through a symlink.',
+    ], { env }),
+    /Wiki template must be a real file/,
+  );
+  assert.match(await readFile(external, 'utf8'), /# \{\{title\}\}/);
+});
+
 test('wiki daily writes localized raw reports for English and Korean base wikis', async () => {
   for (const language of ['en', 'ko']) {
     const { env } = await setupIsolatedWiki(`omw-daily-${language}-`, language);
@@ -1590,6 +1623,31 @@ test('wiki ingest refuses symlinked Raw notes before writing review drafts', asy
     /Raw note must be a real file/i,
   );
   await assert.rejects(readFile(path.join(wiki, '.omw', 'ingest-drafts', 'External Link.md'), 'utf8'));
+});
+
+test('wiki ingest refuses symlinked rule notes before reading summaries', async () => {
+  const { env, wiki } = await setupIsolatedWiki('omw-ingest-rule-symlink-', 'en');
+  await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'capture',
+    '--title',
+    'Rule Symlink Source',
+    '--body',
+    'Rule symlink raw body.',
+  ], { env });
+  const queue = JSON.parse((await execFileAsync(process.execPath, [cliPath, 'wiki', 'queue', '--json'], { env })).stdout);
+  const rawRef = queue.items[0].relativePath;
+  const external = path.join(path.dirname(wiki), 'external-rule.md');
+  const rulePath = path.join(wiki, 'en/06. Resources/06-01. Guides/06-01-02. Note Writing Rules.md');
+  await writeFile(external, '# External Rule\n\nThis rule must not be read through a symlink.\n');
+  await rm(rulePath, { force: true });
+  await symlink(external, rulePath);
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [cliPath, 'wiki', 'ingest', rawRef, '--json'], { env }),
+    /Wiki rule must be a real file/,
+  );
 });
 
 test('scanner ignores sensitivity-only durable notes and template placeholders for raw inference', async () => {

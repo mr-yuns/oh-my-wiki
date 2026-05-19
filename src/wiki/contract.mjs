@@ -2,7 +2,7 @@ import path from 'node:path';
 import { mkdir, readFile } from 'node:fs/promises';
 import { pathExists, readJsonFile, writeJsonFile } from '../utils/fs.js';
 import { scanWikiContract } from './scanner.mjs';
-import { assertSafeOptionalOwmDirectory } from './safety.mjs';
+import { assertSafeExistingFile, assertSafeOptionalOwmDirectory } from './safety.mjs';
 
 export const CONTRACT_RELATIVE_PATH = path.join('.omw', 'contract.json');
 export const DEFAULT_WIKI_LANGUAGE = 'en';
@@ -136,7 +136,11 @@ export async function loadWikiRuleSummaries(status, keys = []) {
   const rules = (status.rules || []).filter((rule) => wanted.size === 0 || wanted.has(rule.key));
   const summaries = [];
   for (const rule of rules) {
-    const text = rule.fullPath ? await readFile(rule.fullPath, 'utf8').catch(() => '') : '';
+    let text = '';
+    if (rule.fullPath && rule.exists) {
+      await assertSafeExistingFile(status, rule.fullPath, 'Wiki rule');
+      text = await readFile(rule.fullPath, 'utf8').catch(() => '');
+    }
     summaries.push({ key: rule.key, label: rule.label, path: rule.path, exists: rule.exists, title: text.match(/^#\s+(.+)$/m)?.[1]?.trim() || rule.label, excerpt: summarizeRuleText(text) });
   }
   return summaries;
