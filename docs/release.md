@@ -28,8 +28,9 @@ The CI workflow runs:
 - npm publish on `main` when the package version has not already been published
 
 Manual `workflow_dispatch` releases skip branch and commit-subject checks because
-they publish the already-merged `main` revision, but still run version policy,
-tests, packaging, and npm publish checks.
+they publish the already-merged `main` revision. The version-policy job still
+runs, but it treats the merged `main` commit as already checked and exits early;
+tests, packaging, and npm publish checks still run.
 
 ## npm Trusted Publishing
 

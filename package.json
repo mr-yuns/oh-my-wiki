@@ -1,6 +1,6 @@
 {
   "name": "oh-my-wiki",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "General-purpose wiki runtime with local search, capture, hooks, skills, and optional OMX/OMC wrappers.",
   "homepage": "https://github.com/mr-yuns/oh-my-wiki#readme",
   "repository": {

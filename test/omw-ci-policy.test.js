@@ -106,7 +106,7 @@ test('git policy validates branch names', () => {
     'feat/wiki-init',
     'fix/sqlite-node20',
     'ci/npm-publish',
-    'release/0.3.9',
+    'release/0.3.1',
     'hotfix/publish-auth',
   ]) {
     assert.equal(isValidBranchName(branchName), true, branchName);

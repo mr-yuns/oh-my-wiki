@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.2
+
+- Align release and branch documentation with the current npm-published project
+  state and workflow behavior.
+
 ## 0.3.1
 
 - Verify GitHub Actions npm Trusted Publishing with the initialized public

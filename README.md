@@ -45,7 +45,7 @@ features work without either runtime.
 
 ## Installation
 
-From npm, once published:
+From npm:
 
 ```bash
 npm install -g oh-my-wiki

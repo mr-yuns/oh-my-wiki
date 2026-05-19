@@ -28,7 +28,7 @@ Long-lived branches:
 Release branches:
 
 ```text
-release/0.3.9
+release/0.3.1
 ```
 
 Work branches:
