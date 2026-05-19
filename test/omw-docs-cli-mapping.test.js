@@ -86,6 +86,7 @@ test('README command table and CLI help stay bidirectionally mapped', async () =
   });
   assert(readme.includes('understanding score'));
   assert(readme.includes('Wiki-specific Deep Interview'));
+  assert(help.includes('Active wiki: OMW_WIKI_PATH, saved config, then repository .wiki'));
 });
 
 function readmeCommandTable(readme) {

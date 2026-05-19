@@ -417,7 +417,7 @@ Usage:
 
 Defaults:
   State root: ~/.omw
-  Base wiki: repository .wiki unless --wiki is provided
+  Active wiki: OMW_WIKI_PATH, saved config, then repository .wiki
 `);
   return 0;
 }
