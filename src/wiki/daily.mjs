@@ -5,7 +5,7 @@ import { frontmatterScalar, redactSensitiveText } from './redaction.mjs';
 import { renderWikiTemplate } from './template.mjs';
 import { assertRawNoteSafety } from './validation.mjs';
 import { pathExists, writeTextFileAtomic } from '../utils/fs.js';
-import { assertSafeExistingDirectory } from './safety.mjs';
+import { assertSafeExistingDirectory, assertSafeOptionalFile } from './safety.mjs';
 
 export async function createDailyReport({ config, author, team, date, body = '', options = {} }) {
   if (!author?.trim()) throw new Error('wiki daily requires --author');
@@ -152,6 +152,7 @@ async function buildDailyReportWrite({ status, dailyType, notePath, author, team
       added: withSections.added + fragment.work.length,
     };
   }
+  await assertSafeOptionalFile(status, notePath, 'Daily report note');
   const merged = await mergeDailyReport({ status, notePath, body: redactedBody, platform });
   return {
     note: merged.note,

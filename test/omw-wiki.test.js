@@ -616,6 +616,42 @@ test('wiki daily refuses symlinked Raw member folders before writing', async () 
   assert.equal((await readdir(external)).length, 0);
 });
 
+test('wiki daily refuses symlinked existing daily report files before reading', async () => {
+  const { root, env, wiki } = await setupIsolatedWiki('omw-daily-note-symlink-', 'en');
+  const args = [
+    cliPath,
+    'wiki',
+    'daily',
+    '--author',
+    'Alex',
+    '--team',
+    'Docs',
+    '--date',
+    '2026-05-18',
+  ];
+  const created = JSON.parse((await execFileAsync(process.execPath, [
+    ...args,
+    '--body',
+    '- Initial work',
+    '--json',
+  ], { env })).stdout);
+  const external = path.join(root, 'external-daily-note.md');
+  await writeFile(external, '# External Daily\n\nDo not read this external note.\n');
+  await rm(created.path, { force: true });
+  await symlink(external, created.path);
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      ...args,
+      '--body',
+      '- Follow-up work',
+    ], { env }),
+    /Daily report note must be a real file/,
+  );
+  assert.equal(await readFile(external, 'utf8'), '# External Daily\n\nDo not read this external note.\n');
+  await assert.rejects(readFile(path.join(wiki, '.omw', 'external-daily-note.md'), 'utf8'));
+});
+
 test('wiki daily updates English reports using English sections', async () => {
   const { env, wiki } = await setupIsolatedWiki('omw-daily-update-en-', 'en');
   const args = [
