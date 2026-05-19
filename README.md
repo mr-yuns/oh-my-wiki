@@ -93,6 +93,18 @@ node src/cli/omw.js --help
 
 ## Quick Start
 
+Try the bundled base wiki immediately:
+
+```bash
+omw wiki status
+omw search "Knowledge Map"
+```
+
+Before explicit setup, wiki commands use the repository `.wiki` as the active
+wiki and may generate ignored runtime contract files under `.wiki/.omw/`. Run
+`omw init` or `omw setup --wiki <path>` when you want to persist a personal wiki
+connection.
+
 Create or connect a wiki:
 
 ```bash
@@ -342,8 +354,8 @@ Important environment variables:
 | Variable | Purpose |
 | --- | --- |
 | `OH_MY_WIKI_HOME` | Override the OMW state root. |
-| `OMW_WIKI_PATH` | Default wiki path for setup. |
-| `OMW_WIKI_LANGUAGE` | Default language for setup, such as `en` or `ko`. |
+| `OMW_WIKI_PATH` | Active wiki path for wiki commands and default wiki path for setup. |
+| `OMW_WIKI_LANGUAGE` | Active wiki language for wiki commands and default language for setup, such as `en` or `ko`. |
 | `OMW_OMX_BIN` | Override the OMX command used by wrappers. |
 | `OMW_OMC_BIN` | Override the OMC command used by wrappers. |
 

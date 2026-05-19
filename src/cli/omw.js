@@ -248,12 +248,39 @@ function hookSummary(status, platform) {
 
 async function wiki(subcommand, argv = []) {
   const options = parseOptions(argv);
-  const config = await readConfig();
+  const storedConfig = await readConfig();
+  const config = wikiRuntimeConfig(storedConfig);
+  if (shouldBootstrapRuntimeWikiContract({ storedConfig, config, subcommand, options })) {
+    await ensureWikiContract(config.wikiPath, { language: config.wikiLanguage });
+  }
   const { runWikiCommand } = await import('../commands/wiki.mjs');
   const stdinText = options.stdin ? await readStdinText() : '';
   const result = await runWikiCommand({ subcommand, config, options, stdinText });
   process.stdout.write(result.output);
   return result.exitCode;
+}
+
+function wikiRuntimeConfig(config) {
+  const envWikiPath = process.env.OMW_WIKI_PATH ? path.resolve(process.env.OMW_WIKI_PATH) : null;
+  const envWikiLanguage = process.env.OMW_WIKI_LANGUAGE || null;
+  return {
+    schemaVersion: config?.schemaVersion || 1,
+    sourcePath: config?.sourcePath || repoRoot(),
+    wikiPath: envWikiPath || config?.wikiPath || defaultBaseWikiPath(),
+    wikiAutoCapture: config?.wikiAutoCapture || false,
+    wikiLanguage: normalizeWikiLanguage(envWikiLanguage || config?.wikiLanguage || 'en'),
+    omxBin: process.env.OMW_OMX_BIN || config?.omxBin || 'omx',
+    omcBin: process.env.OMW_OMC_BIN || config?.omcBin || 'omc',
+    pythonBin: config?.pythonBin || 'python3',
+  };
+}
+
+function shouldBootstrapRuntimeWikiContract({ storedConfig, config, subcommand, options = {} }) {
+  if (subcommand === 'init') return false;
+  if (subcommand === 'contract' && options['dry-run']) return false;
+  if (!storedConfig) return true;
+  if (!process.env.OMW_WIKI_PATH) return false;
+  return path.resolve(process.env.OMW_WIKI_PATH) !== storedConfig.wikiPath && config.wikiPath === path.resolve(process.env.OMW_WIKI_PATH);
 }
 
 async function readStdinText() {

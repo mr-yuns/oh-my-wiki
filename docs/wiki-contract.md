@@ -23,6 +23,9 @@ required schema shape without adding an external validator dependency.
 contract --refresh` and `omw wiki refresh --target contract` rescan the wiki and
 rewrite scanner-owned fields. Add `--dry-run --json` to preview the next
 contract and a field-level change summary without writing `.omw/contract.json`.
+When no setup/config exists yet, wiki commands use the bundled repository
+`.wiki` as the active wiki and may create its ignored `.wiki/.omw/contract.json`
+so the base wiki is usable immediately.
 
 The scanner is intentionally conservative:
 

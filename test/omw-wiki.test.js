@@ -114,6 +114,103 @@ test('setup uses the repository base wiki by default', async () => {
   assert.equal(await readFile(path.resolve('.wiki/.omw/contract.json'), 'utf8').then((text) => text.includes('omw-contract-scanner')), true);
 });
 
+test('wiki commands use repository base wiki before explicit setup', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'omw-zero-config-base-'));
+  const home = path.join(root, 'state');
+  const env = { ...process.env, OH_MY_WIKI_HOME: home };
+
+  const status = JSON.parse((await execFileAsync(process.execPath, [cliPath, 'wiki', 'status', '--json'], { env })).stdout);
+  assert.equal(status.ok, true);
+  assert.equal(status.wikiPath, path.resolve('.wiki'));
+
+  const search = JSON.parse((await execFileAsync(process.execPath, [
+    cliPath,
+    'search',
+    'Knowledge Map',
+    '--backend',
+    'scan',
+    '--json',
+  ], { env })).stdout);
+  assert.equal(search.ok, true);
+  assert(search.results.some((item) => item.relativePath.includes('Knowledge Map')));
+
+  await assert.rejects(readFile(path.join(home, 'config.json'), 'utf8'));
+});
+
+test('wiki commands honor OMW_WIKI_PATH before explicit setup', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'omw-env-wiki-path-'));
+  const home = path.join(root, 'state');
+  const wiki = path.join(root, 'personal-wiki');
+  await mkdir(path.join(wiki, 'notes'), { recursive: true });
+  await writeFile(path.join(wiki, 'notes/env.md'), '# Env Wiki Note\n\nSearchable env-connected wiki content.\n');
+  const env = { ...process.env, OH_MY_WIKI_HOME: home, OMW_WIKI_PATH: wiki };
+
+  const status = JSON.parse((await execFileAsync(process.execPath, [cliPath, 'wiki', 'status', '--json'], { env })).stdout);
+  assert.equal(status.ok, true);
+  assert.equal(status.wikiPath, wiki);
+  assert.equal(status.contractPath, path.join(wiki, '.omw', 'contract.json'));
+
+  const search = JSON.parse((await execFileAsync(process.execPath, [
+    cliPath,
+    'search',
+    'env-connected',
+    '--backend',
+    'scan',
+    '--json',
+  ], { env })).stdout);
+  assert.equal(search.ok, true);
+  assert.equal(search.results[0].relativePath, 'notes/env.md');
+
+  await assert.rejects(readFile(path.join(home, 'config.json'), 'utf8'));
+});
+
+test('OMW_WIKI_PATH overrides stored config for wiki commands without persisting', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'omw-env-wiki-override-'));
+  const home = path.join(root, 'state');
+  const configuredWiki = path.join(root, 'configured-wiki');
+  const overrideWiki = path.join(root, 'override-wiki');
+  await mkdir(path.join(configuredWiki, 'notes'), { recursive: true });
+  await mkdir(path.join(overrideWiki, 'notes'), { recursive: true });
+  await writeFile(path.join(configuredWiki, 'notes/configured.md'), '# Configured Wiki\n\nConfigured-only content.\n');
+  await writeFile(path.join(overrideWiki, 'notes/override.md'), '# Override Wiki\n\nOverride-only content.\n');
+  const env = { ...process.env, OH_MY_WIKI_HOME: home };
+
+  await execFileAsync(process.execPath, [
+    cliPath,
+    'setup',
+    '--wiki',
+    configuredWiki,
+    '--no-hooks',
+    '--codex-home',
+    path.join(root, 'codex'),
+    '--claude-home',
+    path.join(root, 'claude'),
+    '--omx-bin',
+    'omw-definitely-missing-command',
+    '--omc-bin',
+    'omw-definitely-missing-command',
+  ], { env });
+
+  const overrideEnv = { ...env, OMW_WIKI_PATH: overrideWiki };
+  const status = JSON.parse((await execFileAsync(process.execPath, [cliPath, 'wiki', 'status', '--json'], { env: overrideEnv })).stdout);
+  assert.equal(status.ok, true);
+  assert.equal(status.wikiPath, overrideWiki);
+
+  const search = JSON.parse((await execFileAsync(process.execPath, [
+    cliPath,
+    'search',
+    'Override-only',
+    '--backend',
+    'scan',
+    '--json',
+  ], { env: overrideEnv })).stdout);
+  assert.equal(search.ok, true);
+  assert.equal(search.results[0].relativePath, 'notes/override.md');
+
+  const persisted = JSON.parse(await readFile(path.join(home, 'config.json'), 'utf8'));
+  assert.equal(persisted.wikiPath, configuredWiki);
+});
+
 test('doctor reports configured wikiPath files as invalid directories', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'omw-config-wiki-file-'));
   const home = path.join(root, 'state');
