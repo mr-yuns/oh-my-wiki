@@ -1351,6 +1351,28 @@ test('scanner generates a working contract for a custom external wiki without ba
   assert.equal(queued.items[0].state, 'new');
   assert.equal(queued.items[0].target, '');
 
+  const rawReport = await execFileAsync(process.execPath, [cliPath, 'wiki', 'report-raw-ingest'], { env });
+  assert.match(rawReport.stdout, /# Raw Ingest Report/);
+  assert.match(rawReport.stdout, /new: 1/);
+  assert.match(rawReport.stdout, /knowledge\/raw\/sessions\//);
+
+  await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'daily',
+    '--author',
+    'Dana',
+    '--team',
+    'Platform',
+    '--date',
+    '2026-05-18',
+    '--body',
+    '- Custom wiki daily report.',
+  ], { env });
+  const dailyReport = await execFileAsync(process.execPath, [cliPath, 'wiki', 'report-daily', '--date', '2026-05-18'], { env });
+  assert.match(dailyReport.stdout, /# Daily Report Summary/);
+  assert.match(dailyReport.stdout, /\| 2026-05-18 \| Dana \| Platform \| new \|/);
+
   const search = await execFileAsync(process.execPath, [cliPath, 'wiki', 'search', 'Unique Custom Map', '--json'], { env });
   const results = JSON.parse(search.stdout);
   assert.equal(results.ok, true);
