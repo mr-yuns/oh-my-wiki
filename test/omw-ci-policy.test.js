@@ -27,6 +27,16 @@ test('npm package keeps docs but excludes heavyweight documentation assets', asy
   assert(!pkg.files.includes('docs/'));
 });
 
+test('tracked base wiki excludes runtime state and scripts', () => {
+  const files = git(['ls-files', '.wiki']).trim().split('\n').filter(Boolean);
+  assert(files.length > 0, 'base wiki should have tracked files');
+  for (const file of files) {
+    assert(!file.startsWith('.wiki/.omw/'), `tracked base wiki must not include runtime state: ${file}`);
+    assert(!file.startsWith('.wiki/.omx/'), `tracked base wiki must not include OMX runtime state: ${file}`);
+    assert(!file.startsWith('.wiki/scripts/'), `tracked base wiki must not include scripts: ${file}`);
+  }
+});
+
 test('CI commit policy scopes new branch pushes to default-branch merge-base', async () => {
   const workflow = await readFile('.github/workflows/ci.yml', 'utf8');
   assert.match(workflow, /DEFAULT_BRANCH: \$\{\{ github\.event\.repository\.default_branch \}\}/);

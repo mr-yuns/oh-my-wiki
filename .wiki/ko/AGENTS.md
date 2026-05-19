@@ -17,7 +17,7 @@
 - Obsidian 설정 중 공개 가능한 기본 설정
 - 운영 가이드, 지도, 카탈로그
 - Raw, Literature, Permanent, Project, Area, Archive 템플릿
-- wiki 검증 스크립트
+- wiki 검증 체크리스트와 문서화된 운영 절차
 
 ## 제외해야 하는 것
 
