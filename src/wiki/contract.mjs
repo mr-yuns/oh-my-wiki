@@ -306,7 +306,9 @@ function validateUnderstanding(value, issues) {
   if (!Number.isInteger(value.score) || value.score < 0 || value.score > 100) {
     issues.push('understanding.score must be an integer between 0 and 100');
   }
-  if (Object.hasOwn(value, 'complete') && typeof value.complete !== 'boolean') {
+  if (!Object.hasOwn(value, 'complete')) {
+    issues.push('understanding.complete is required');
+  } else if (typeof value.complete !== 'boolean') {
     issues.push('understanding.complete must be a boolean');
   }
   if (Object.hasOwn(value, 'missingDimensions') && !Array.isArray(value.missingDimensions)) {

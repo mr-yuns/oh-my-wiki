@@ -1407,6 +1407,23 @@ test('wiki contract explain summarizes contract shape and schema is valid JSON',
   assert.equal(valid.ok, true);
   assert.equal(valid.validation.ok, true);
 
+  const missingUnderstanding = await setupIsolatedWiki('omw-contract-missing-understanding-', 'en');
+  const missingUnderstandingPath = path.join(missingUnderstanding.wiki, '.omw/contract.json');
+  const missingUnderstandingContract = JSON.parse(await readFile(missingUnderstandingPath, 'utf8'));
+  delete missingUnderstandingContract.understanding.complete;
+  await writeFile(missingUnderstandingPath, `${JSON.stringify(missingUnderstandingContract, null, 2)}\n`);
+  await assert.rejects(
+    async () => {
+      try {
+        await execFileAsync(process.execPath, [cliPath, 'wiki', 'contract', '--validate', '--json'], { env: missingUnderstanding.env });
+      } catch (error) {
+        assert.match(error.stdout, /understanding\.complete is required/);
+        throw error;
+      }
+    },
+    /Command failed/,
+  );
+
   const invalid = await setupIsolatedWiki('omw-contract-invalid-', 'en');
   const contractPath = path.join(invalid.wiki, '.omw/contract.json');
   const invalidContract = JSON.parse(await readFile(contractPath, 'utf8'));
