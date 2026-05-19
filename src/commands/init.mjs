@@ -1,4 +1,4 @@
-import { cp, mkdir, readdir } from 'node:fs/promises';
+import { cp, lstat, mkdir, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { validateConfig, writeConfig } from '../config/config.js';
 import { repoRoot } from '../skills/manager.js';
@@ -9,7 +9,7 @@ export async function initializeWiki({ config, options = {} }) {
   const wikiPath = path.resolve(options.wiki || options['wiki-path'] || options._?.[0] || config?.wikiPath || path.join(process.cwd(), 'wiki'));
   const language = normalizeWikiLanguage(options.language || options.lang || config?.wikiLanguage || 'en');
   const createdWiki = !(await pathExists(wikiPath));
-  if (createdWiki) await mkdir(wikiPath, { recursive: true });
+  await ensureInitWikiDirectory(wikiPath);
 
   const copiedBaseWiki = await seedBaseWikiIfEmpty({ wikiPath, language });
   const nextConfig = await writeConfig({
@@ -41,7 +41,7 @@ export async function initializeWiki({ config, options = {} }) {
 }
 
 async function seedBaseWikiIfEmpty({ wikiPath, language }) {
-  await mkdir(wikiPath, { recursive: true });
+  await ensureInitWikiDirectory(wikiPath);
   const entries = await readdir(wikiPath, { withFileTypes: true }).catch(() => []);
   if (entries.length > 0) return false;
 
@@ -52,4 +52,33 @@ async function seedBaseWikiIfEmpty({ wikiPath, language }) {
     await cp(path.join(source, entry.name), path.join(wikiPath, entry.name), { recursive: true, errorOnExist: true, force: false });
   }
   return true;
+}
+
+async function ensureInitWikiDirectory(wikiPath) {
+  const existing = await lstat(wikiPath).catch((error) => {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  });
+  if (existing) {
+    if (existing.isSymbolicLink() || !existing.isDirectory()) {
+      throw new Error(`wikiPath must be a real directory: ${wikiPath}`);
+    }
+    return;
+  }
+
+  let ancestor = path.dirname(wikiPath);
+  while (ancestor && ancestor !== path.dirname(ancestor)) {
+    const stat = await lstat(ancestor).catch((error) => {
+      if (error?.code === 'ENOENT') return null;
+      throw error;
+    });
+    if (stat) {
+      if (stat.isSymbolicLink() || !stat.isDirectory()) {
+        throw new Error(`wikiPath ancestor must be a real directory: ${ancestor}`);
+      }
+      break;
+    }
+    ancestor = path.dirname(ancestor);
+  }
+  await mkdir(wikiPath, { recursive: true });
 }

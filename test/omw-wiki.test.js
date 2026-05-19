@@ -213,6 +213,29 @@ test('init connects non-empty markdown wikis without seeding base content', asyn
   assert.equal(await readFile(path.join(wiki, 'notes/alpha.md'), 'utf8'), '# Alpha\n\nExisting note.\n');
 });
 
+test('init refuses symlinked wikiPath ancestors before copying the base wiki', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'omw-init-ancestor-symlink-'));
+  const home = path.join(root, 'state');
+  const external = path.join(root, 'external-parent');
+  const link = path.join(root, 'linked-parent');
+  await mkdir(external, { recursive: true });
+  await symlink(external, link, 'dir');
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      cliPath,
+      'init',
+      '--wiki',
+      path.join(link, 'wiki'),
+      '--language',
+      'en',
+      '--json',
+    ], { env: { ...process.env, OH_MY_WIKI_HOME: home } }),
+    /wikiPath ancestor must be a real directory/,
+  );
+  assert.equal((await readdir(external)).length, 0);
+});
+
 test('wiki validate uses contract-aware checks for generic markdown wikis', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'omw-validate-generic-'));
   const home = path.join(root, 'state');
