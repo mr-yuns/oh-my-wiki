@@ -550,6 +550,20 @@ test('wiki capture refuses symlinked Raw type folders before writing', async () 
   await symlink(external, rawFolder, 'dir');
 
   await assert.rejects(
+    async () => {
+      try {
+        await execFileAsync(process.execPath, [cliPath, 'wiki', 'status', '--json'], { env });
+      } catch (error) {
+        const status = JSON.parse(error.stdout);
+        assert.equal(status.raw.types.find((entry) => entry.key === 'agent_session').exists, false);
+        assert(status.issues.some((issue) => /Raw type folder must be a real directory/.test(issue)));
+        throw error;
+      }
+    },
+    /Command failed/,
+  );
+
+  await assert.rejects(
     execFileAsync(process.execPath, [
       cliPath,
       'wiki',
@@ -1189,6 +1203,20 @@ test('wiki search and validation refuse symlinked search roots before reading', 
   contract.search.root = 'linked-search-root';
   contract.search.excludeDirs = [];
   await writeFile(contractPath, `${JSON.stringify(contract, null, 2)}\n`);
+
+  await assert.rejects(
+    async () => {
+      try {
+        await execFileAsync(process.execPath, [cliPath, 'wiki', 'status', '--json'], { env });
+      } catch (error) {
+        const status = JSON.parse(error.stdout);
+        assert.equal(status.search.rootExists, false);
+        assert(status.issues.some((issue) => /Search root must be a real directory/.test(issue)));
+        throw error;
+      }
+    },
+    /Command failed/,
+  );
 
   await assert.rejects(
     execFileAsync(process.execPath, [cliPath, 'wiki', 'search', 'outside-only-needle', '--backend', 'scan'], { env }),

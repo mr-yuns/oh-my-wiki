@@ -100,10 +100,14 @@ export async function buildWikiStatus(config) {
   const language = status.contract?.language || config?.wikiLanguage || DEFAULT_WIKI_LANGUAGE;
   const searchRoot = status.contract?.search?.root || '';
   const searchRootPath = wikiPath && searchRoot ? path.join(wikiPath, searchRoot) : wikiPath;
-  const searchRootExists = searchRootPath ? await pathExists(searchRootPath) : false;
+  const searchRootStatus = status.ok && searchRootPath
+    ? await safeOptionalDirectoryStatus(status, searchRootPath, 'Search root')
+    : { exists: searchRootPath ? await pathExists(searchRootPath) : false, issue: null };
   const rawRoot = status.contract?.raw?.root || '';
   const rawRootPath = wikiPath && rawRoot ? path.join(wikiPath, rawRoot) : '';
-  const rawRootExists = rawRootPath ? await pathExists(rawRootPath) : false;
+  const rawRootStatus = status.ok && rawRootPath
+    ? await safeOptionalDirectoryStatus(status, rawRootPath, 'Raw root')
+    : { exists: rawRootPath ? await pathExists(rawRootPath) : false, issue: null };
   const typeEntries = Object.entries(status.contract?.raw?.types || {});
   const ruleEntries = Object.entries(status.contract?.rules || {});
   const rules = [];
@@ -120,18 +124,27 @@ export async function buildWikiStatus(config) {
     const template = value.agentTemplate || value.template || value.humanTemplate || '';
     const templatePath = template ? path.join(wikiPath, template) : '';
     const templateStatus = templatePath ? await safeOptionalFileStatus(status, templatePath, 'Raw template') : { exists: false, issue: null };
-    types.push({ key, label: value.label || key, folder: value.folder || '', folderPath, exists: folderPath ? await pathExists(folderPath) : false, template, templatePath, templateExists: templateStatus.exists, templateIssue: templateStatus.issue, naming: value.naming || {} });
+    const folderStatus = status.ok && folderPath
+      ? await safeOptionalDirectoryStatus(status, folderPath, 'Raw type folder')
+      : { exists: folderPath ? await pathExists(folderPath) : false, issue: null };
+    types.push({ key, label: value.label || key, folder: value.folder || '', folderPath, exists: folderStatus.exists, folderIssue: folderStatus.issue, template, templatePath, templateExists: templateStatus.exists, templateIssue: templateStatus.issue, naming: value.naming || {} });
   }
   const issues = [...status.issues];
-  if (status.ok && searchRoot && !searchRootExists) {
+  if (status.ok && searchRootStatus.issue) {
+    issues.push(searchRootStatus.issue);
+  } else if (status.ok && searchRoot && !searchRootStatus.exists) {
     issues.push(await missingWikiDirectoryIssue(status, searchRootPath, 'Search root', `wiki search root does not exist: ${searchRootPath}`));
   }
-  if (status.ok && rawRoot && !rawRootExists) {
+  if (status.ok && rawRootStatus.issue) {
+    issues.push(rawRootStatus.issue);
+  } else if (status.ok && rawRoot && !rawRootStatus.exists) {
     issues.push(await missingWikiDirectoryIssue(status, rawRootPath, 'Raw root', `wiki raw root does not exist: ${rawRootPath}`));
   }
   if (status.ok) {
     for (const type of types) {
-      if (type.folderPath && !type.exists) {
+      if (type.folderIssue) {
+        issues.push(type.folderIssue);
+      } else if (type.folderPath && !type.exists) {
         issues.push(await missingWikiDirectoryIssue(status, type.folderPath, 'Raw type folder', `wiki raw type folder does not exist (${type.key}): ${type.folderPath}`));
       }
       if (type.templateIssue) issues.push(type.templateIssue);
@@ -143,7 +156,16 @@ export async function buildWikiStatus(config) {
       else if (!rule.exists) issues.push(`wiki rule note does not exist (${rule.key}): ${rule.path}`);
     }
   }
-  return { ...status, ok: issues.length === 0, language, understanding: status.contract?.understanding || null, capabilities: status.contract?.capabilities || {}, search: { ...(status.contract?.search || {}), root: searchRoot, rootPath: searchRootPath, rootExists: searchRootExists }, raw: { root: rawRoot, rootPath: rawRootPath, rootExists: rawRootExists, types }, rules, issues };
+  return { ...status, ok: issues.length === 0, language, understanding: status.contract?.understanding || null, capabilities: status.contract?.capabilities || {}, search: { ...(status.contract?.search || {}), root: searchRoot, rootPath: searchRootPath, rootExists: searchRootStatus.exists }, raw: { root: rawRoot, rootPath: rawRootPath, rootExists: rawRootStatus.exists, types }, rules, issues };
+}
+
+async function safeOptionalDirectoryStatus(status, targetPath, label) {
+  try {
+    return { exists: await assertSafeOptionalDirectory(status, targetPath, label), issue: null };
+  } catch (error) {
+    if (isWikiSafetyError(error)) return { exists: false, issue: error.message };
+    throw error;
+  }
 }
 
 async function safeOptionalFileStatus(status, targetPath, label) {
