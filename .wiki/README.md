@@ -1,16 +1,16 @@
 # OMW base wiki
 
-This vault contains multilingual base wiki templates for Oh My Wiki.
+This folder contains multilingual base wiki templates for Oh My Wiki.
 
 - `en/`: English base wiki
 - `ko/`: Korean base wiki
 
-The tracked base wiki contains reusable Markdown content, templates, and shared
-editor defaults only. Runtime contracts, indexes, generated drafts, and report
-or validation logic are generated only for the active wiki and are excluded from
-Git and npm packaging. When this repository `.wiki` is used directly, local
-runtime files may appear under `.wiki/.omw/`; they must stay ignored and
-unpacked.
+The tracked base wiki contains reusable Markdown content, templates, placeholder
+folders, and minimal ignore rules only. Runtime contracts, indexes, generated
+drafts, editor-local settings, and report or validation logic are generated only
+for the active wiki and are excluded from Git and npm packaging. When this
+repository `.wiki` is used directly, local runtime files may appear under
+`.wiki/.omw/`; they must stay ignored and unpacked.
 
 Choose the language during setup:
 
