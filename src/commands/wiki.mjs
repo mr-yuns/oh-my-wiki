@@ -1,0 +1,320 @@
+import { buildWikiStatus, normalizeWikiLanguage, refreshWikiContract } from '../wiki/contract.mjs';
+import { captureRawNote } from '../wiki/capture.mjs';
+import { ensureWikiSearchIndex, searchWiki } from '../wiki/search.mjs';
+import { createIngestPreview, listRawQueue } from '../wiki/ingest.mjs';
+import { createDailyReport } from '../wiki/daily.mjs';
+import { createDailyReportSummary, createRawIngestReport, validateWiki } from '../wiki/reports.mjs';
+
+export async function runWikiCommand({ subcommand, config, options = {}, stdinText = '' }) {
+  const command = subcommand || 'status';
+  if (command === 'status') {
+    return wikiStatus({ config, options });
+  }
+  if (command === 'init') {
+    return wikiInit({ config, options });
+  }
+  if (command === 'capture') {
+    return wikiCapture({ config, options, stdinText });
+  }
+  if (command === 'search') {
+    return wikiSearch({ config, options });
+  }
+  if (command === 'queue') {
+    return wikiQueue({ config, options });
+  }
+  if (command === 'ingest') {
+    return wikiIngest({ config, options });
+  }
+  if (command === 'daily') {
+    return wikiDaily({ config, options, stdinText });
+  }
+  if (command === 'report-raw-ingest') {
+    return wikiReportRawIngest({ config, options });
+  }
+  if (command === 'report-daily') {
+    return wikiReportDaily({ config, options });
+  }
+  if (command === 'validate') {
+    return wikiValidate({ config, options });
+  }
+  if (command === 'contract') {
+    return wikiContract({ config, options });
+  }
+  if (command === 'refresh') {
+    return wikiRefresh({ config, options });
+  }
+  throw new Error(`Unknown wiki command: ${command}`);
+}
+
+async function wikiInit({ config, options }) {
+  const { initializeWiki } = await import('./init.mjs');
+  const result = await initializeWiki({ config, options });
+  if (options.json) {
+    return { exitCode: result.ok ? 0 : 1, output: `${JSON.stringify(result, null, 2)}\n` };
+  }
+  const lines = [
+    'OMW Wiki init',
+    `- wiki: ${result.wikiPath}`,
+    `- language: ${result.language}`,
+    `- created wiki directory: ${result.createdWiki ? 'yes' : 'no'}`,
+    `- copied base wiki: ${result.copiedBaseWiki ? 'yes' : 'no'}`,
+    `- contract: ${result.contractPath}`,
+  ];
+  if (result.contractCreated) lines.push('- contract created: yes');
+  if (result.contractUpdated) lines.push('- contract updated: yes');
+  if (result.issues.length > 0) {
+    lines.push('', 'Issues:');
+    for (const issue of result.issues) lines.push(`- ${issue}`);
+  } else {
+    lines.push('', 'OMW wiki is initialized.');
+  }
+  return { exitCode: result.ok ? 0 : 1, output: `${lines.join('\n')}\n` };
+}
+
+async function wikiReportRawIngest({ config, options }) {
+  const result = await createRawIngestReport({ config, options });
+  return { exitCode: result.ok ? 0 : 1, output: result.output };
+}
+
+async function wikiReportDaily({ config, options }) {
+  const result = await createDailyReportSummary({ config, options });
+  return { exitCode: result.ok ? 0 : 1, output: result.output };
+}
+
+async function wikiValidate({ config, options }) {
+  const result = await validateWiki({ config, options });
+  if (options.json) {
+    return { exitCode: result.ok ? 0 : 1, output: `${JSON.stringify(result, null, 2)}\n` };
+  }
+  if (result.ok) {
+    return { exitCode: 0, output: `OK: base wiki validation passed\n` };
+  }
+  return { exitCode: 1, output: `base wiki validation failed:\n- ${result.failures.join('\n- ')}\n` };
+}
+
+async function wikiRefresh({ config, options }) {
+  const target = options.target || options.mode || options._?.[0] || 'all';
+  if (!['all', 'contract', 'index'].includes(target)) {
+    throw new Error('Usage: omw wiki refresh [--target all|contract|index] [--json]');
+  }
+
+  const refreshed = {
+    contract: false,
+    index: false,
+  };
+  const issues = [];
+  let contractResult = null;
+  let indexResult = null;
+
+  if (target === 'all' || target === 'contract') {
+    contractResult = await refreshWikiContract(config?.wikiPath || '', { language: resolveCommandLanguage(config, options) });
+    refreshed.contract = Boolean(contractResult.refreshed);
+    issues.push(...(contractResult.issues || []));
+  }
+
+  if (target === 'all' || target === 'index') {
+    indexResult = await ensureWikiSearchIndex({ config });
+    refreshed.index = Boolean(indexResult.ok);
+    issues.push(...(indexResult.issues || []));
+  }
+
+  const status = await buildWikiStatus(config);
+  issues.push(...(status.issues || []));
+  const result = {
+    ok: issues.length === 0,
+    target,
+    refreshed,
+    contract: contractResult,
+    index: indexResult,
+    status,
+    issues: [...new Set(issues)],
+  };
+
+  if (options.json) {
+    return { exitCode: result.ok ? 0 : 1, output: `${JSON.stringify(result, null, 2)}\n` };
+  }
+
+  const lines = ['OMW Wiki refresh', `- target: ${target}`];
+  lines.push(`- contract: ${refreshed.contract ? 'refreshed' : 'skipped'}`);
+  lines.push(`- index: ${refreshed.index ? `refreshed (${indexResult.indexPath})` : 'skipped'}`);
+  if (result.issues.length > 0) {
+    lines.push('', 'Issues:');
+    for (const issue of result.issues) lines.push(`- ${issue}`);
+  }
+  return { exitCode: result.ok ? 0 : 1, output: `${lines.join('\n')}\n` };
+}
+
+async function wikiContract({ config, options }) {
+  let refreshResult = null;
+  if (options.refresh) {
+    refreshResult = await refreshWikiContract(config?.wikiPath || '', { language: resolveCommandLanguage(config, options) });
+    if (!refreshResult.ok) {
+      const output = options.json ? `${JSON.stringify(refreshResult, null, 2)}\n` : `Wiki contract refresh failed:\n- ${refreshResult.issues.join('\n- ')}\n`;
+      return { exitCode: 1, output };
+    }
+  }
+  const status = await buildWikiStatus(config);
+  if (options.json) {
+    return { exitCode: status.ok ? 0 : 1, output: `${JSON.stringify({ ...status, refreshed: Boolean(refreshResult?.refreshed) }, null, 2)}\n` };
+  }
+  const lines = ['OMW Wiki contract'];
+  if (refreshResult?.refreshed) lines.push('- refreshed: yes');
+  lines.push(`- path: ${status.contractExists ? status.contractPath : '(missing)'}`);
+  lines.push(`- valid: ${status.ok ? 'yes' : 'no'}`);
+  lines.push(`- rules: ${status.rules?.length || 0}`);
+  lines.push(`- raw types: ${status.raw.types.length}`);
+  if (status.issues.length > 0) {
+    lines.push('', 'Issues:');
+    for (const issue of status.issues) lines.push(`- ${issue}`);
+  }
+  return { exitCode: status.ok ? 0 : 1, output: `${lines.join('\n')}\n` };
+}
+
+async function wikiDaily({ config, options, stdinText }) {
+  const result = await createDailyReport({
+    config,
+    author: options.author,
+    team: options.team,
+    date: options.date,
+    body: stdinText || options.body || '',
+    options: {
+      dryRun: Boolean(options['dry-run']),
+      platform: options.platform || 'manual',
+    },
+  });
+  if (options.json || options['dry-run']) return { exitCode: 0, output: `${JSON.stringify(result, null, 2)}\n` };
+  const verb = result.action === 'updated' ? 'Updated' : result.action === 'unchanged' ? 'Unchanged' : 'Created';
+  return { exitCode: 0, output: `${verb} daily report Raw: ${result.relativePath}\n` };
+}
+
+async function wikiQueue({ config, options }) {
+  const result = await listRawQueue({ config });
+  if (options.json) {
+    return { exitCode: 0, output: `${JSON.stringify(result, null, 2)}\n` };
+  }
+  const lines = ['Wiki Raw queue', `- total: ${result.total}`];
+  for (const item of result.items) lines.push(`- ${item.relativePath} [${item.state}]`);
+  return { exitCode: 0, output: `${lines.join('\n')}\n` };
+}
+
+async function wikiIngest({ config, options }) {
+  const rawRef = options._?.[0] || options.raw || '';
+  const result = await createIngestPreview({
+    config,
+    rawRef,
+    options: {
+      writeDraft: Boolean(options['write-draft']),
+      overwriteDraft: Boolean(options['overwrite-draft']),
+    },
+  });
+  if (options.json) return { exitCode: 0, output: `${JSON.stringify(result, null, 2)}\n` };
+  const lines = [
+    'Wiki ingest preview',
+    `- raw: ${result.rawRelativePath}`,
+    `- title: ${result.title}`,
+    `- write performed: ${result.writePerformed ? 'yes' : 'no'}`,
+    ...(result.relativePath ? [`- draft: ${result.relativePath}`] : []),
+    `- next: ${result.review.instruction}`,
+  ];
+  if (result.rules?.length > 0) {
+    lines.push('', 'Rule notes:');
+    for (const rule of result.rules) lines.push(`- ${rule.path}`);
+  }
+  if (result.excerpt) {
+    lines.push('', 'Raw excerpt:', result.excerpt);
+  }
+  return { exitCode: 0, output: `${lines.join('\n')}\n` };
+}
+
+async function wikiSearch({ config, options }) {
+  const query = options._?.join(' ') || options.query || '';
+  const result = await searchWiki({
+    config,
+    query,
+    limit: Number.parseInt(options.limit || '20', 10),
+    backend: options.backend || 'auto',
+  });
+  if (options.json) {
+    return {
+      exitCode: 0,
+      output: `${JSON.stringify(result, null, 2)}\n`,
+    };
+  }
+  const lines = [`Wiki search: ${result.query}`, `- total: ${result.total}`];
+  for (const item of result.results) {
+    lines.push(`- ${item.relativePath}`);
+    if (item.excerpt) lines.push(`  ${item.excerpt}`);
+  }
+  return {
+    exitCode: 0,
+    output: `${lines.join('\n')}\n`,
+  };
+}
+
+async function wikiStatus({ config, options }) {
+  const status = await buildWikiStatus(config);
+  if (options.json) {
+    return {
+      exitCode: status.ok ? 0 : 1,
+      output: `${JSON.stringify(status, null, 2)}\n`,
+    };
+  }
+  const lines = [];
+  lines.push('OMW Wiki status');
+  lines.push(`- configured: ${status.configured ? 'yes' : 'no'}`);
+  lines.push(`- path: ${status.wikiPath || '(not configured)'}`);
+  lines.push(`- contract: ${status.contractExists ? status.contractPath : '(missing)'}`);
+  lines.push(`- raw root: ${status.raw.rootPath || '(unknown)'}${status.raw.rootExists ? ' (exists)' : ''}`);
+  if (status.raw.types.length > 0) {
+    lines.push('- raw types:');
+    for (const type of status.raw.types) {
+      lines.push(`  - ${type.key}: ${type.folderPath || type.folder}${type.exists ? ' (exists)' : ' (missing)'}`);
+    }
+  }
+  if (status.rules?.length > 0) {
+    lines.push('- rule notes:');
+    for (const rule of status.rules) {
+      lines.push(`  - ${rule.key}: ${rule.path}${rule.exists ? ' (exists)' : ' (missing)'}`);
+    }
+  }
+  if (status.issues.length > 0) {
+    lines.push('');
+    lines.push('Issues:');
+    for (const issue of status.issues) lines.push(`- ${issue}`);
+  }
+  return {
+    exitCode: status.ok ? 0 : 1,
+    output: `${lines.join('\n')}\n`,
+  };
+}
+
+async function wikiCapture({ config, options, stdinText }) {
+  const result = await captureRawNote({
+    config,
+    type: options.type || 'agent_session',
+    title: options.title,
+    body: stdinText || options.body || '',
+    options: {
+      dryRun: Boolean(options['dry-run']),
+      includeContent: Boolean(options['include-content']),
+      platform: options.platform || 'manual',
+      workspace: options.workspace || '',
+      branch: options.branch || '',
+      capturedAt: options['captured-at'],
+    },
+  });
+  if (options.json || options['dry-run']) {
+    return {
+      exitCode: 0,
+      output: `${JSON.stringify(result, null, 2)}\n`,
+    };
+  }
+  return {
+    exitCode: 0,
+    output: `Captured Raw note: ${result.path}\n`,
+  };
+}
+
+function resolveCommandLanguage(config, options = {}) {
+  return normalizeWikiLanguage(options.language || options.lang || config?.wikiLanguage || 'en');
+}

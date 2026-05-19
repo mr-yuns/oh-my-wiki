@@ -1,0 +1,16 @@
+#!/usr/bin/env node
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createDailyReportSummary, parseToolOptions, resolveToolLanguage } from './_wiki-tools.mjs';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const options = parseToolOptions(process.argv.slice(2));
+const language = resolveToolLanguage(root, options);
+
+process.stdout.write(createDailyReportSummary({
+  root,
+  language,
+  date: options.date,
+  team: options.team,
+  author: options.author,
+}));

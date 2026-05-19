@@ -1,0 +1,50 @@
+{
+  "name": "oh-my-wiki",
+  "version": "0.3.0",
+  "description": "General-purpose wiki runtime with local search, capture, hooks, skills, and optional OMX/OMC wrappers.",
+  "homepage": "https://github.com/mr-yuns/oh-my-wiki#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mr-yuns/oh-my-wiki.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mr-yuns/oh-my-wiki/issues"
+  },
+  "type": "module",
+  "bin": {
+    "omw": "src/cli/omw.js",
+    "wiki-agent": "src/cli/omw.js"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "check": "find src -type f \\( -name '*.js' -o -name '*.mjs' \\) -print0 | xargs -0 -n1 node --check && npm test",
+    "smoke": "node src/cli/omw.js --help",
+    "check:git-policy": "node scripts/git-policy.mjs subject \"feat: validate git policy\" && node scripts/git-policy.mjs branch \"fix/example-branch\""
+  },
+  "files": [
+    "README.md",
+    "CONTRIBUTING.md",
+    "SECURITY.md",
+    "CHANGELOG.md",
+    "LICENSE",
+    ".wiki/",
+    "docs/",
+    "skills/",
+    "src/",
+    "scripts/"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "codex",
+    "omx",
+    "wiki",
+    "agent",
+    "markdown"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "license": "MIT"
+}
