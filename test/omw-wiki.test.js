@@ -837,6 +837,61 @@ test('wiki search and validation refuse symlinked search roots before reading', 
   );
 });
 
+test('wiki validate reports unsafe contract raw roots and rule notes', async () => {
+  const rawFixture = await setupIsolatedWiki('omw-validate-raw-root-symlink-', 'en');
+  const rawRoot = path.join(rawFixture.wiki, 'en', '01. Inbox', '01-01. Raw');
+  const externalRaw = path.join(rawFixture.root, 'external-raw-root');
+  for (const folder of [
+    '01-01-01. Web Clipper',
+    '01-01-02. Daily Reports',
+    '01-01-03. Agent Sessions',
+    '01-01-04. Discussions',
+  ]) {
+    await mkdir(path.join(externalRaw, folder), { recursive: true });
+  }
+  await rm(rawRoot, { recursive: true, force: true });
+  await symlink(externalRaw, rawRoot, 'dir');
+  const rawContractPath = path.join(rawFixture.wiki, '.omw/contract.json');
+  const rawContract = JSON.parse(await readFile(rawContractPath, 'utf8'));
+  rawContract.source.profile = 'generic-markdown';
+  await writeFile(rawContractPath, `${JSON.stringify(rawContract, null, 2)}\n`);
+
+  await assert.rejects(
+    async () => {
+      try {
+        await execFileAsync(process.execPath, [cliPath, 'wiki', 'validate'], { env: rawFixture.env });
+      } catch (error) {
+        assert.match(error.stdout, /Raw root must be a real directory/);
+        throw error;
+      }
+    },
+    /Command failed/,
+  );
+
+  const ruleFixture = await setupIsolatedWiki('omw-validate-rule-symlink-', 'en');
+  const ruleContractPath = path.join(ruleFixture.wiki, '.omw/contract.json');
+  const ruleContract = JSON.parse(await readFile(ruleContractPath, 'utf8'));
+  ruleContract.source.profile = 'generic-markdown';
+  await writeFile(ruleContractPath, `${JSON.stringify(ruleContract, null, 2)}\n`);
+  const externalRule = path.join(ruleFixture.root, 'external-rule.md');
+  const rulePath = path.join(ruleFixture.wiki, 'en/06. Resources/06-01. Guides/06-01-02. Note Writing Rules.md');
+  await writeFile(externalRule, '# External Rule\n\nDo not read this rule through validate.\n');
+  await rm(rulePath, { force: true });
+  await symlink(externalRule, rulePath);
+
+  await assert.rejects(
+    async () => {
+      try {
+        await execFileAsync(process.execPath, [cliPath, 'wiki', 'validate'], { env: ruleFixture.env });
+      } catch (error) {
+        assert.match(error.stdout, /Wiki rule must be a real file/);
+        throw error;
+      }
+    },
+    /Command failed/,
+  );
+});
+
 test('wiki contract explain summarizes contract shape and schema is valid JSON', async () => {
   const { env } = await setupIsolatedWiki('omw-contract-explain-', 'en');
   const explained = JSON.parse((await execFileAsync(process.execPath, [

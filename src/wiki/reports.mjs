@@ -6,7 +6,7 @@ import {
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { buildWikiStatus } from './contract.mjs';
-import { assertSafeExistingDirectory } from './safety.mjs';
+import { assertSafeExistingDirectory, assertSafeExistingFile } from './safety.mjs';
 import { storedSecretIssues } from './validation.mjs';
 
 export async function createRawIngestReport({ config, options = {} }) {
@@ -179,6 +179,22 @@ async function validateContractWiki(status) {
   if (status.raw?.rootPath && !status.raw.rootExists) {
     failures.push(`wiki raw root does not exist: ${status.raw.rootPath}`);
   }
+  if (status.raw?.rootPath && status.raw.rootExists) {
+    await pushSafetyFailure(failures, () => assertSafeExistingDirectory(status, status.raw.rootPath, 'Raw root'));
+  }
+  for (const type of status.raw?.types || []) {
+    if (type.folderPath && type.exists) {
+      await pushSafetyFailure(failures, () => assertSafeExistingDirectory(status, type.folderPath, 'Raw type folder'));
+    }
+    if (type.templatePath && type.templateExists) {
+      await pushSafetyFailure(failures, () => assertSafeExistingFile(status, type.templatePath, 'Raw template'));
+    }
+  }
+  for (const rule of status.rules || []) {
+    if (rule.fullPath && rule.exists) {
+      await pushSafetyFailure(failures, () => assertSafeExistingFile(status, rule.fullPath, 'Wiki rule'));
+    }
+  }
   let searchRootSafe = true;
   if (status.search?.rootPath && status.search.rootExists) {
     try {
@@ -205,6 +221,14 @@ async function validateContractWiki(status) {
     }
   }
   return { ok: failures.length === 0, failures: [...new Set(failures)] };
+}
+
+async function pushSafetyFailure(failures, check) {
+  try {
+    await check();
+  } catch (error) {
+    failures.push(error instanceof Error ? error.message : String(error));
+  }
 }
 
 async function listMarkdownFiles(directory, { root, base, excludeDirs }) {
