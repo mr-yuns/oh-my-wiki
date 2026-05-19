@@ -107,6 +107,10 @@ export async function ensureWikiSearchIndex({ config }) {
 }
 
 async function activeSearchRoot(status) {
+  if (status.search?.root && !status.search.rootExists) {
+    const configuredRootIssue = (status.issues || []).find((issue) => issue.includes('Search root') || issue.includes('wiki search root'));
+    throw new Error(configuredRootIssue || `wiki search root does not exist: ${status.search.rootPath}`);
+  }
   const root = status.search?.rootExists ? status.search.rootPath : status.wikiPath;
   await assertSafeExistingDirectory(status, root, 'Search root');
   return root;

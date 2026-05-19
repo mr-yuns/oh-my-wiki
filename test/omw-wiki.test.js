@@ -1190,6 +1190,36 @@ test('wiki search and validation refuse symlinked search roots before reading', 
   );
 });
 
+test('wiki search refuses missing contract search roots instead of falling back to the whole wiki', async () => {
+  const { env, wiki } = await setupIsolatedWiki('omw-search-missing-root-', 'en');
+  await writeFile(path.join(wiki, 'en/03. Permanent Notes/searchable.md'), '# Searchable Outside Root\n\nmissing-root-needle\n');
+  await updateWikiContract(wiki, (contract) => {
+    contract.search.root = 'missing-search-root';
+    return contract;
+  });
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [cliPath, 'wiki', 'search', 'missing-root-needle', '--backend', 'scan', '--json'], { env }),
+    /wiki search root does not exist/,
+  );
+});
+
+test('wiki search refuses broken symlinked contract search roots', async () => {
+  const { root, env, wiki } = await setupIsolatedWiki('omw-search-broken-root-', 'en');
+  const external = path.join(root, 'missing-search-root');
+  await symlink(external, path.join(wiki, 'linked-search-root'), 'dir');
+  await updateWikiContract(wiki, (contract) => {
+    contract.search.root = 'linked-search-root';
+    return contract;
+  });
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [cliPath, 'wiki', 'search', 'Knowledge Map', '--backend', 'scan', '--json'], { env }),
+    /Search root must be a real directory/,
+  );
+  await assert.rejects(readdir(external));
+});
+
 test('wiki validate reports unsafe contract raw roots and rule notes', async () => {
   const rawFixture = await setupIsolatedWiki('omw-validate-raw-root-symlink-', 'en');
   const rawRoot = path.join(rawFixture.wiki, 'en', '01. Inbox', '01-01. Raw');

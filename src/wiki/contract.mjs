@@ -2,7 +2,7 @@ import path from 'node:path';
 import { readFile } from 'node:fs/promises';
 import { pathExists, readJsonFile, writeJsonFile } from '../utils/fs.js';
 import { scanWikiContract } from './scanner.mjs';
-import { assertSafeExistingAncestor, assertSafeExistingFile, assertSafeOptionalFile, assertSafeOptionalOwmDirectory, ensureSafeDirectory, isWikiSafetyError } from './safety.mjs';
+import { assertSafeExistingAncestor, assertSafeExistingFile, assertSafeOptionalDirectory, assertSafeOptionalFile, assertSafeOptionalOwmDirectory, ensureSafeDirectory, isWikiSafetyError } from './safety.mjs';
 
 export const CONTRACT_RELATIVE_PATH = path.join('.omw', 'contract.json');
 export const DEFAULT_WIKI_LANGUAGE = 'en';
@@ -121,13 +121,16 @@ export async function buildWikiStatus(config) {
     types.push({ key, label: value.label || key, folder: value.folder || '', folderPath, exists: folderPath ? await pathExists(folderPath) : false, template, templatePath, templateExists: templatePath ? await pathExists(templatePath) : false, naming: value.naming || {} });
   }
   const issues = [...status.issues];
+  if (status.ok && searchRoot && !searchRootExists) {
+    issues.push(await missingWikiDirectoryIssue(status, searchRootPath, 'Search root', `wiki search root does not exist: ${searchRootPath}`));
+  }
   if (status.ok && rawRoot && !rawRootExists) {
-    issues.push(await missingWikiPathIssue(status, rawRootPath, 'Raw root', `wiki raw root does not exist: ${rawRootPath}`));
+    issues.push(await missingWikiDirectoryIssue(status, rawRootPath, 'Raw root', `wiki raw root does not exist: ${rawRootPath}`));
   }
   if (status.ok) {
     for (const type of types) {
       if (type.folderPath && !type.exists) {
-        issues.push(await missingWikiPathIssue(status, type.folderPath, 'Raw type folder', `wiki raw type folder does not exist (${type.key}): ${type.folderPath}`));
+        issues.push(await missingWikiDirectoryIssue(status, type.folderPath, 'Raw type folder', `wiki raw type folder does not exist (${type.key}): ${type.folderPath}`));
       }
       if (type.template && !type.templateExists) issues.push(`wiki raw type template does not exist (${type.key}): ${type.template}`);
     }
@@ -139,8 +142,9 @@ export async function buildWikiStatus(config) {
   return { ...status, ok: issues.length === 0, language, understanding: status.contract?.understanding || null, capabilities: status.contract?.capabilities || {}, search: { ...(status.contract?.search || {}), root: searchRoot, rootPath: searchRootPath, rootExists: searchRootExists }, raw: { root: rawRoot, rootPath: rawRootPath, rootExists: rawRootExists, types }, rules, issues };
 }
 
-async function missingWikiPathIssue(status, targetPath, label, fallbackIssue) {
+async function missingWikiDirectoryIssue(status, targetPath, label, fallbackIssue) {
   try {
+    if (await assertSafeOptionalDirectory(status, targetPath, label)) return fallbackIssue;
     await assertSafeExistingAncestor(status, targetPath, label);
     return fallbackIssue;
   } catch (error) {

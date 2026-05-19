@@ -35,8 +35,7 @@ export async function assertSafeExistingAncestor(status, targetPath, label) {
 }
 
 export async function ensureSafeDirectory(status, directoryPath, label) {
-  if (await pathExists(directoryPath)) {
-    await assertSafeExistingDirectory(status, directoryPath, label);
+  if (await assertSafeOptionalDirectory(status, directoryPath, label)) {
     return;
   }
   await assertSafeExistingAncestor(status, directoryPath, label);
@@ -48,6 +47,25 @@ export async function assertSafeOptionalOwmDirectory(wikiPath) {
   const omwRoot = path.join(wikiPath, '.omw');
   if (!(await pathExists(omwRoot))) return;
   await assertSafeExistingDirectory({ wikiPath }, omwRoot, '.omw directory');
+}
+
+export async function assertSafeOptionalDirectory(status, directoryPath, label) {
+  const directoryStat = await lstat(directoryPath).catch((error) => {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  });
+  if (!directoryStat) return false;
+  if (directoryStat.isSymbolicLink() || !directoryStat.isDirectory()) {
+    throw wikiSafetyError(`${label} must be a real directory: ${relativeToWiki(status, directoryPath)}`);
+  }
+  const [wikiRealPath, directoryRealPath] = await Promise.all([
+    realpath(status.wikiPath),
+    realpath(directoryPath),
+  ]);
+  if (!isInsidePath(wikiRealPath, directoryRealPath)) {
+    throw wikiSafetyError(`${label} must stay inside the wiki: ${relativeToWiki(status, directoryPath)}`);
+  }
+  return true;
 }
 
 export async function assertSafeExistingFile(status, filePath, label) {
