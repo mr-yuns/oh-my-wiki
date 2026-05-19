@@ -1,11 +1,11 @@
-import { mkdir, open, readdir, readFile, rm, stat } from 'node:fs/promises';
+import { open, readdir, readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { buildWikiStatus } from './contract.mjs';
 import { frontmatterScalar, redactSensitiveText } from './redaction.mjs';
 import { renderWikiTemplate } from './template.mjs';
 import { assertRawNoteSafety } from './validation.mjs';
 import { pathExists, writeTextFileAtomic } from '../utils/fs.js';
-import { assertSafeExistingDirectory, assertSafeOptionalFile } from './safety.mjs';
+import { assertSafeExistingDirectory, assertSafeOptionalFile, ensureSafeDirectory } from './safety.mjs';
 
 export async function createDailyReport({ config, author, team, date, body = '', options = {} }) {
   if (!author?.trim()) throw new Error('wiki daily requires --author');
@@ -27,7 +27,7 @@ export async function createDailyReport({ config, author, team, date, body = '',
   }
 
   const execute = async () => {
-    const memberFolder = await ensureMemberFolder(dailyType.folderPath, canonicalAuthor, dailyType.naming, { dryRun });
+    const memberFolder = await ensureMemberFolder(status, dailyType.folderPath, canonicalAuthor, dailyType.naming, { dryRun });
     const memberPath = path.join(dailyType.folderPath, memberFolder);
     if (!dryRun) await assertSafeExistingDirectory(status, memberPath, 'Daily report member folder');
     const plannedNotePath = path.join(memberPath, renderReportFileName(dailyType.naming, { author: canonicalAuthor, memberFolder, reportDate }));
@@ -64,10 +64,7 @@ export async function createDailyReport({ config, author, team, date, body = '',
   return withDailyReportLock(dailyType.folderPath, canonicalAuthor, reportDate, execute);
 }
 
-async function ensureMemberFolder(root, author, naming = {}, options = {}) {
-  if (!options.dryRun) {
-    await mkdir(root, { recursive: true });
-  }
+async function ensureMemberFolder(status, root, author, naming = {}, options = {}) {
   const safeAuthor = sanitizeName(author);
   const entries = await readdir(root, { withFileTypes: true }).catch(() => []);
   const existing = entries.find((entry) => entry.isDirectory() && (entry.name === safeAuthor || entry.name.endsWith(`. ${author}`)));
@@ -88,7 +85,7 @@ async function ensureMemberFolder(root, author, naming = {}, options = {}) {
     .replaceAll('{author}', sanitizeName(author))
     .replaceAll('{memberPrefix}', memberPrefix);
   if (!options.dryRun) {
-    await mkdir(path.join(root, folder), { recursive: true });
+    await ensureSafeDirectory(status, path.join(root, folder), 'Daily report member folder');
   }
   return folder;
 }
@@ -323,7 +320,6 @@ function resolveAuthorName(author, naming = {}) {
 }
 
 async function withDailyReportLock(root, author, reportDate, callback) {
-  await mkdir(root, { recursive: true });
   const lockPath = path.join(root, `.daily-${sanitizeName(author)}-${reportDate}.lock`);
   let handle = null;
   for (let attempt = 0; attempt < 100; attempt += 1) {

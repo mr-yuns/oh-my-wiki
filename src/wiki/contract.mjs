@@ -1,8 +1,8 @@
 import path from 'node:path';
-import { mkdir, readFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { pathExists, readJsonFile, writeJsonFile } from '../utils/fs.js';
 import { scanWikiContract } from './scanner.mjs';
-import { assertSafeExistingFile, assertSafeOptionalFile, assertSafeOptionalOwmDirectory } from './safety.mjs';
+import { assertSafeExistingAncestor, assertSafeExistingFile, assertSafeOptionalFile, assertSafeOptionalOwmDirectory, ensureSafeDirectory, isWikiSafetyError } from './safety.mjs';
 
 export const CONTRACT_RELATIVE_PATH = path.join('.omw', 'contract.json');
 export const DEFAULT_WIKI_LANGUAGE = 'en';
@@ -59,7 +59,7 @@ export async function ensureWikiContract(wikiPath, options = {}) {
     await writeJsonFile(contractPath, next);
     return { ok: true, created: false, updated: true, contractPath, issues: [] };
   }
-  await mkdir(path.dirname(contractPath), { recursive: true });
+  await ensureSafeDirectory({ wikiPath }, path.dirname(contractPath), '.omw directory');
   await writeJsonFile(contractPath, scanned);
   return { ok: true, created: true, updated: false, contractPath, issues: [] };
 }
@@ -89,7 +89,7 @@ export async function refreshWikiContract(wikiPath, options = {}) {
     };
   }
   if (!changed) return { ok: true, refreshed: false, changed: false, dryRun: false, contractPath, issues: [] };
-  await mkdir(path.dirname(contractPath), { recursive: true });
+  await ensureSafeDirectory({ wikiPath }, path.dirname(contractPath), '.omw directory');
   await writeJsonFile(contractPath, next);
   return { ok: true, refreshed: true, changed: true, dryRun: false, contractPath, changes: summarizeContractChanges(current, next), issues: [] };
 }
@@ -121,10 +121,14 @@ export async function buildWikiStatus(config) {
     types.push({ key, label: value.label || key, folder: value.folder || '', folderPath, exists: folderPath ? await pathExists(folderPath) : false, template, templatePath, templateExists: templatePath ? await pathExists(templatePath) : false, naming: value.naming || {} });
   }
   const issues = [...status.issues];
-  if (status.ok && rawRoot && !rawRootExists) issues.push(`wiki raw root does not exist: ${rawRootPath}`);
+  if (status.ok && rawRoot && !rawRootExists) {
+    issues.push(await missingWikiPathIssue(status, rawRootPath, 'Raw root', `wiki raw root does not exist: ${rawRootPath}`));
+  }
   if (status.ok) {
     for (const type of types) {
-      if (type.folderPath && !type.exists) issues.push(`wiki raw type folder does not exist (${type.key}): ${type.folderPath}`);
+      if (type.folderPath && !type.exists) {
+        issues.push(await missingWikiPathIssue(status, type.folderPath, 'Raw type folder', `wiki raw type folder does not exist (${type.key}): ${type.folderPath}`));
+      }
       if (type.template && !type.templateExists) issues.push(`wiki raw type template does not exist (${type.key}): ${type.template}`);
     }
     for (const rule of rules) {
@@ -133,6 +137,16 @@ export async function buildWikiStatus(config) {
     }
   }
   return { ...status, ok: issues.length === 0, language, understanding: status.contract?.understanding || null, capabilities: status.contract?.capabilities || {}, search: { ...(status.contract?.search || {}), root: searchRoot, rootPath: searchRootPath, rootExists: searchRootExists }, raw: { root: rawRoot, rootPath: rawRootPath, rootExists: rawRootExists, types }, rules, issues };
+}
+
+async function missingWikiPathIssue(status, targetPath, label, fallbackIssue) {
+  try {
+    await assertSafeExistingAncestor(status, targetPath, label);
+    return fallbackIssue;
+  } catch (error) {
+    if (isWikiSafetyError(error)) return error.message;
+    throw error;
+  }
 }
 
 async function safeOptionalContractStatus(wikiPath, contractPath) {

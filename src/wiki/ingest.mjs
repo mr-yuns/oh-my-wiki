@@ -1,8 +1,8 @@
-import { lstat, mkdir, open, readdir, readFile, realpath } from 'node:fs/promises';
+import { lstat, open, readdir, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { buildWikiStatus, loadWikiRuleSummaries } from './contract.mjs';
 import { pathExists, writeTextFileAtomic } from '../utils/fs.js';
-import { assertSafeExistingDirectory, assertSafeExistingFile, assertSafeOptionalOwmDirectory, isInsidePath } from './safety.mjs';
+import { assertSafeExistingDirectory, assertSafeExistingFile, assertSafeOptionalOwmDirectory, ensureSafeDirectory, isInsidePath } from './safety.mjs';
 
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx']);
 const DRAFTS_RELATIVE_ROOT = path.join('.omw', 'ingest-drafts');
@@ -119,18 +119,8 @@ async function maybePromoteRawNote({ status, rawPath, rawRelativePath, title, ex
 async function prepareSafeDraftRoot(status, draftRoot) {
   const omwRoot = path.join(status.wikiPath, '.omw');
   await assertSafeExistingDirectory(status, status.wikiPath, 'wiki root');
-  if (await pathExists(omwRoot)) {
-    await assertSafeExistingDirectory(status, omwRoot, '.omw directory');
-  } else {
-    await mkdir(omwRoot);
-    await assertSafeExistingDirectory(status, omwRoot, '.omw directory');
-  }
-  if (await pathExists(draftRoot)) {
-    await assertSafeExistingDirectory(status, draftRoot, 'ingest draft root');
-  } else {
-    await mkdir(draftRoot);
-    await assertSafeExistingDirectory(status, draftRoot, 'ingest draft root');
-  }
+  await ensureSafeDirectory(status, omwRoot, '.omw directory');
+  await ensureSafeDirectory(status, draftRoot, 'ingest draft root');
 }
 
 async function writeDraftFile({ draftPath, content, overwrite, relativePath }) {
@@ -366,20 +356,8 @@ async function resolvePromotionTarget(status, targetRef) {
 async function ensurePromotionParent(status, targetPath) {
   await assertSafeExistingDirectory(status, status.wikiPath, 'wiki root');
   const parent = path.dirname(targetPath);
-  await assertSafeExistingPromotionAncestor(status, parent);
-  await mkdir(parent, { recursive: true });
-  await assertSafeExistingDirectory(status, parent, 'promotion target directory');
+  await ensureSafeDirectory(status, parent, 'promotion target directory');
   return Promise.all([realpath(status.wikiPath), realpath(parent)]);
-}
-
-async function assertSafeExistingPromotionAncestor(status, parent) {
-  let current = parent;
-  while (!(await pathExists(current))) {
-    const next = path.dirname(current);
-    if (next === current) break;
-    current = next;
-  }
-  await assertSafeExistingDirectory(status, current, 'promotion target ancestor');
 }
 
 async function writePromotionFile({ targetPath, content, overwrite, relativePath }) {

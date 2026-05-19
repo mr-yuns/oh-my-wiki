@@ -1,4 +1,4 @@
-import { lstat, realpath } from 'node:fs/promises';
+import { lstat, mkdir, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { pathExists } from '../utils/fs.js';
 
@@ -22,6 +22,26 @@ export async function assertSafeExistingDirectory(status, directoryPath, label) 
   if (!isInsidePath(wikiRealPath, directoryRealPath)) {
     throw wikiSafetyError(`${label} must stay inside the wiki: ${relativeToWiki(status, directoryPath)}`);
   }
+}
+
+export async function assertSafeExistingAncestor(status, targetPath, label) {
+  let current = targetPath;
+  while (!(await pathExists(current))) {
+    const next = path.dirname(current);
+    if (next === current) break;
+    current = next;
+  }
+  await assertSafeExistingDirectory(status, current, `${label} ancestor`);
+}
+
+export async function ensureSafeDirectory(status, directoryPath, label) {
+  if (await pathExists(directoryPath)) {
+    await assertSafeExistingDirectory(status, directoryPath, label);
+    return;
+  }
+  await assertSafeExistingAncestor(status, directoryPath, label);
+  await mkdir(directoryPath, { recursive: true });
+  await assertSafeExistingDirectory(status, directoryPath, label);
 }
 
 export async function assertSafeOptionalOwmDirectory(wikiPath) {

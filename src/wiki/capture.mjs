@@ -1,11 +1,11 @@
-import { mkdir, open, readdir } from 'node:fs/promises';
+import { open, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { buildWikiStatus } from './contract.mjs';
 import { frontmatterScalar, redactSensitiveText } from './redaction.mjs';
 import { renderWikiTemplate } from './template.mjs';
 import { assertRawNoteSafety } from './validation.mjs';
 import { pathExists } from '../utils/fs.js';
-import { assertSafeExistingDirectory } from './safety.mjs';
+import { assertSafeExistingDirectory, ensureSafeDirectory } from './safety.mjs';
 
 const DEFAULT_TYPE = 'agent_session';
 
@@ -31,10 +31,7 @@ export async function captureRawNote({ config, type = DEFAULT_TYPE, title, body 
   if (await pathExists(folderPath)) {
     await assertSafeExistingDirectory(status, folderPath, 'Raw type folder');
   }
-  if (!options.dryRun) {
-    await mkdir(folderPath, { recursive: true });
-    await assertSafeExistingDirectory(status, folderPath, 'Raw type folder');
-  }
+  if (!options.dryRun) await ensureSafeDirectory(status, folderPath, 'Raw type folder');
   const prefix = notePrefix(rawType, status.contract?.raw?.naming);
   const sequence = await nextSequence(folderPath, prefix);
   let fileName = captureFileName({ prefix, sequence, now, type, title });

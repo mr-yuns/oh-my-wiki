@@ -1,8 +1,8 @@
 import { watch } from 'node:fs';
-import { mkdir, readFile, stat } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { pathExists } from '../../utils/fs.js';
-import { assertSafeExistingDirectory, assertSafeExistingFile, assertSafeOptionalOwmDirectory } from '../safety.mjs';
+import { assertSafeExistingDirectory, assertSafeExistingFile, assertSafeOptionalOwmDirectory, ensureSafeDirectory } from '../safety.mjs';
 import { DEFAULT_SQLITE_SEARCH_RANKING, excerptForTerms, markdownFiles, noteFileMetadata, noteSearchMetadata, normalizeSearchRanking, queryTerms, titleFromText } from './shared.mjs';
 
 const INDEX_RELATIVE_PATH = path.join('.omw', 'index.sqlite');
@@ -21,7 +21,7 @@ export const sqliteSearchBackend = {
     }
     const dbPath = path.join(wikiPath, INDEX_RELATIVE_PATH);
     await prepareSafeIndexPath(wikiPath, dbPath);
-    await mkdir(path.dirname(dbPath), { recursive: true });
+    await ensureSafeDirectory({ wikiPath }, path.dirname(dbPath), 'SQLite index directory');
     const db = new sqlite.DatabaseSync(dbPath);
     try {
       prepareSchema(db);
@@ -41,7 +41,7 @@ export async function ensureSqliteSearchIndex({ wikiPath, searchRootPath, exclud
   const dbPath = path.join(wikiPath, INDEX_RELATIVE_PATH);
   const existed = await pathExists(dbPath);
   await prepareSafeIndexPath(wikiPath, dbPath);
-  await mkdir(path.dirname(dbPath), { recursive: true });
+  await ensureSafeDirectory({ wikiPath }, path.dirname(dbPath), 'SQLite index directory');
   const db = new sqlite.DatabaseSync(dbPath);
   let stats;
   try {

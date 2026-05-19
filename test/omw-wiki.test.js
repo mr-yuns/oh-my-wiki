@@ -55,6 +55,12 @@ async function setupIsolatedWiki(prefix, language = 'en', options = {}) {
   return { root, home, wiki, env: { ...process.env, OH_MY_WIKI_HOME: home } };
 }
 
+async function updateWikiContract(wiki, update) {
+  const contractPath = path.join(wiki, '.omw', 'contract.json');
+  const contract = JSON.parse(await readFile(contractPath, 'utf8'));
+  await writeFile(contractPath, `${JSON.stringify(update(contract), null, 2)}\n`);
+}
+
 async function snapshotUserMarkdown(root, relativeDir = '') {
   const absoluteDir = path.join(root, relativeDir);
   const entries = await readdir(absoluteDir, { withFileTypes: true });
@@ -548,6 +554,32 @@ test('wiki capture dry-run refuses symlinked Raw type folders before listing', a
   assert.equal((await readdir(external)).length, 0);
 });
 
+test('wiki capture refuses symlinked intermediate Raw type ancestors before mkdir', async () => {
+  const { root, env, wiki } = await setupIsolatedWiki('omw-capture-raw-ancestor-symlink-', 'en');
+  const rawRoot = path.join(wiki, 'en/01. Inbox/01-01. Raw');
+  const external = path.join(root, 'external-raw-ancestor');
+  await mkdir(external, { recursive: true });
+  await symlink(external, path.join(rawRoot, 'linked'), 'dir');
+  await updateWikiContract(wiki, (contract) => {
+    contract.raw.types.agent_session.folder = 'linked/agent_sessions';
+    return contract;
+  });
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      cliPath,
+      'wiki',
+      'capture',
+      '--title',
+      'Blocked ancestor capture',
+      '--body',
+      'Recursive mkdir must not create folders outside the wiki.',
+    ], { env }),
+    /Raw type folder ancestor must be a real directory/,
+  );
+  assert.equal((await readdir(external)).length, 0);
+});
+
 test('wiki capture refuses symlinked Raw templates before reading', async () => {
   const { root, env, wiki } = await setupIsolatedWiki('omw-capture-template-symlink-', 'en');
   const external = path.join(root, 'external-template.md');
@@ -640,6 +672,36 @@ test('wiki daily refuses symlinked Raw member folders before writing', async () 
       'This must not be written outside the wiki.',
     ], { env }),
     /Daily report member folder must be a real directory/,
+  );
+  assert.equal((await readdir(external)).length, 0);
+});
+
+test('wiki daily refuses symlinked intermediate member ancestors before mkdir', async () => {
+  const { root, env, wiki } = await setupIsolatedWiki('omw-daily-member-ancestor-symlink-', 'en');
+  const dailyRoot = path.join(wiki, 'en/01. Inbox/01-01. Raw/01-01-02. Daily Reports');
+  const external = path.join(root, 'external-daily-ancestor');
+  await mkdir(external, { recursive: true });
+  await symlink(external, path.join(dailyRoot, 'linked'), 'dir');
+  await updateWikiContract(wiki, (contract) => {
+    contract.raw.types.daily_report.naming.memberFolderPattern = 'linked/{author}';
+    return contract;
+  });
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      cliPath,
+      'wiki',
+      'daily',
+      '--author',
+      'Alex',
+      '--team',
+      'Docs',
+      '--date',
+      '2026-05-18',
+      '--body',
+      'Recursive mkdir must not create folders outside the wiki.',
+    ], { env }),
+    /Daily report member folder ancestor must be a real directory/,
   );
   assert.equal((await readdir(external)).length, 0);
 });
@@ -1891,7 +1953,7 @@ test('wiki ingest refuses promotion through symlinked parent directories before 
       'linked-promotions/nested/promoted.md',
       '--json',
     ], { env }),
-    /promotion target ancestor must be a real directory/,
+    /promotion target directory ancestor must be a real directory/,
   );
   assert.equal((await readdir(external)).length, 0);
 });
