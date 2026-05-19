@@ -1,9 +1,17 @@
-import { cp, lstat, mkdir, readdir } from 'node:fs/promises';
+import { cp, lstat, mkdir, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { validateConfig, writeConfig } from '../config/config.js';
 import { repoRoot } from '../skills/manager.js';
 import { pathExists } from '../utils/fs.js';
 import { buildWikiStatus, ensureWikiContract, normalizeWikiLanguage } from '../wiki/contract.mjs';
+
+const BASE_WIKI_GITIGNORE = [
+  '.obsidian/',
+  '.omw/*',
+  '.omx/',
+  '.DS_Store',
+  '',
+].join('\n');
 
 export async function initializeWiki({ config, options = {} }) {
   const wikiPath = path.resolve(options.wiki || options['wiki-path'] || options._?.[0] || config?.wikiPath || path.join(process.cwd(), 'wiki'));
@@ -12,6 +20,7 @@ export async function initializeWiki({ config, options = {} }) {
   await ensureInitWikiDirectory(wikiPath);
 
   const copiedBaseWiki = await seedBaseWikiIfEmpty({ wikiPath, language });
+  if (copiedBaseWiki) await ensureBaseWikiIgnoreFile(wikiPath);
   const nextConfig = await writeConfig({
     sourcePath: repoRoot(),
     wikiPath,
@@ -38,6 +47,13 @@ export async function initializeWiki({ config, options = {} }) {
     status,
     issues,
   };
+}
+
+async function ensureBaseWikiIgnoreFile(wikiPath) {
+  const ignorePath = path.join(wikiPath, '.gitignore');
+  if (await pathExists(ignorePath)) return false;
+  await writeFile(ignorePath, BASE_WIKI_GITIGNORE);
+  return true;
 }
 
 async function seedBaseWikiIfEmpty({ wikiPath, language }) {

@@ -39,6 +39,7 @@ test('npm package installs working omw and wiki-agent bins with packaged runtime
       assert(packedFiles.has(required), `packed artifact should include ${required}`);
     }
     assert(![...packedFiles].some((file) => file.startsWith('.wiki/.omw/')), 'packed artifact should not include base wiki runtime state');
+    assert(![...packedFiles].some((file) => file.startsWith('.wiki/.obsidian/')), 'packed artifact should not include base wiki editor-local state');
     assert(![...packedFiles].some((file) => file.startsWith('.wiki/scripts/')), 'packed artifact should not include base wiki scripts');
     const tarballPath = path.join(packDir, packed.filename);
     assert(await fileExists(tarballPath), `tarball should exist at ${tarballPath}`);
@@ -64,6 +65,9 @@ test('npm package installs working omw and wiki-agent bins with packaged runtime
     assert.equal(init.ok, true);
     assert.equal(init.wikiPath, wikiPath);
     assert.equal(init.createdWiki, true);
+    const wikiIgnore = await readFile(path.join(wikiPath, '.gitignore'), 'utf8');
+    assert.match(wikiIgnore, /^\.obsidian\/$/m);
+    assert.match(wikiIgnore, /^\.omw\/\*$/m);
 
     const setup = await execFileAsync(omwBin, [
       'setup',

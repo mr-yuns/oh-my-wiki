@@ -33,6 +33,7 @@ test('tracked base wiki excludes runtime state and scripts', () => {
   for (const file of files) {
     assert(!file.startsWith('.wiki/.omw/'), `tracked base wiki must not include runtime state: ${file}`);
     assert(!file.startsWith('.wiki/.omx/'), `tracked base wiki must not include OMX runtime state: ${file}`);
+    assert(!file.startsWith('.wiki/.obsidian/'), `tracked base wiki must not include editor-local state: ${file}`);
     assert(!file.startsWith('.wiki/scripts/'), `tracked base wiki must not include scripts: ${file}`);
   }
 });
