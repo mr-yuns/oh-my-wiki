@@ -311,12 +311,36 @@ function validateUnderstanding(value, issues) {
   } else if (typeof value.complete !== 'boolean') {
     issues.push('understanding.complete must be a boolean');
   }
-  if (Object.hasOwn(value, 'missingDimensions') && !Array.isArray(value.missingDimensions)) {
-    issues.push('understanding.missingDimensions must be an array');
+  validateOptionalObjectArray(value, 'missingDimensions', issues, 'understanding.missingDimensions');
+  validateOptionalObjectArray(value, 'dimensions', issues, 'understanding.dimensions');
+  if (Object.hasOwn(value, 'handoff')) validateUnderstandingHandoff(value.handoff, issues);
+}
+
+function validateUnderstandingHandoff(value, issues) {
+  if (!isPlainObject(value)) {
+    issues.push('understanding.handoff must be an object');
+    return;
   }
-  if (Object.hasOwn(value, 'dimensions') && !Array.isArray(value.dimensions)) {
-    issues.push('understanding.dimensions must be an array');
+  if (Object.hasOwn(value, 'recommended') && typeof value.recommended !== 'boolean') {
+    issues.push('understanding.handoff.recommended must be a boolean');
   }
+  if (Object.hasOwn(value, 'workflow') && typeof value.workflow !== 'string' && value.workflow !== null) {
+    issues.push('understanding.handoff.workflow must be a string or null');
+  }
+  if (Object.hasOwn(value, 'prompt') && typeof value.prompt !== 'string') {
+    issues.push('understanding.handoff.prompt must be a string');
+  }
+}
+
+function validateOptionalObjectArray(object, key, issues, label) {
+  if (!Object.hasOwn(object, key)) return;
+  if (!Array.isArray(object[key])) {
+    issues.push(`${label} must be an array`);
+    return;
+  }
+  object[key].forEach((item, index) => {
+    if (!isPlainObject(item)) issues.push(`${label}[${index}] must be an object`);
+  });
 }
 
 function requireIntegerEnum(object, key, values, issues, label = key) {

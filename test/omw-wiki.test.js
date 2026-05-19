@@ -1424,6 +1424,33 @@ test('wiki contract explain summarizes contract shape and schema is valid JSON',
     /Command failed/,
   );
 
+  const invalidUnderstanding = await setupIsolatedWiki('omw-contract-invalid-understanding-', 'en');
+  const invalidUnderstandingPath = path.join(invalidUnderstanding.wiki, '.omw/contract.json');
+  const invalidUnderstandingContract = JSON.parse(await readFile(invalidUnderstandingPath, 'utf8'));
+  invalidUnderstandingContract.understanding.dimensions = ['profile'];
+  invalidUnderstandingContract.understanding.missingDimensions = ['rules'];
+  invalidUnderstandingContract.understanding.handoff = {
+    recommended: 'yes',
+    workflow: 42,
+    prompt: false,
+  };
+  await writeFile(invalidUnderstandingPath, `${JSON.stringify(invalidUnderstandingContract, null, 2)}\n`);
+  await assert.rejects(
+    async () => {
+      try {
+        await execFileAsync(process.execPath, [cliPath, 'wiki', 'contract', '--validate', '--json'], { env: invalidUnderstanding.env });
+      } catch (error) {
+        assert.match(error.stdout, /understanding\.dimensions\[0\] must be an object/);
+        assert.match(error.stdout, /understanding\.missingDimensions\[0\] must be an object/);
+        assert.match(error.stdout, /understanding\.handoff\.recommended must be a boolean/);
+        assert.match(error.stdout, /understanding\.handoff\.workflow must be a string or null/);
+        assert.match(error.stdout, /understanding\.handoff\.prompt must be a string/);
+        throw error;
+      }
+    },
+    /Command failed/,
+  );
+
   const invalid = await setupIsolatedWiki('omw-contract-invalid-', 'en');
   const contractPath = path.join(invalid.wiki, '.omw/contract.json');
   const invalidContract = JSON.parse(await readFile(contractPath, 'utf8'));
