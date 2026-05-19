@@ -254,6 +254,7 @@ export function validateWikiContractShape(contract) {
     requireObject(contract.raw, 'types', issues, 'raw.types');
     requireStringArray(contract.raw, 'noteTypes', issues, 'raw.noteTypes', { optional: true });
     requireStringArray(contract.raw, 'ingestStates', issues, 'raw.ingestStates', { optional: true });
+    validateRawAmbiguities(contract.raw.ambiguities, issues);
     if (isPlainObject(contract.raw.types)) {
       for (const [key, type] of Object.entries(contract.raw.types)) {
         if (!isPlainObject(type)) {
@@ -298,6 +299,28 @@ export function validateWikiContractShape(contract) {
   if (Object.hasOwn(contract, 'rules')) validateRulesSection(contract.rules, issues);
   if (Object.hasOwn(contract, 'understanding')) validateUnderstanding(contract.understanding, issues);
   return { ok: issues.length === 0, issues };
+}
+
+function validateRawAmbiguities(value, issues) {
+  if (value === undefined) return;
+  if (!Array.isArray(value)) {
+    issues.push('raw.ambiguities must be an array');
+    return;
+  }
+  value.forEach((item, index) => {
+    const label = `raw.ambiguities[${index}]`;
+    if (!isPlainObject(item)) {
+      issues.push(`${label} must be an object`);
+      return;
+    }
+    requireString(item, 'kind', issues, `${label}.kind`);
+    requireString(item, 'root', issues, `${label}.root`);
+    requireWikiRelativePath(item, 'root', issues, `${label}.root`);
+    if (!Number.isInteger(item.score)) issues.push(`${label}.score must be an integer`);
+    requireStringArray(item, 'sources', issues, `${label}.sources`, { optional: true });
+    requireStringArray(item, 'evidence', issues, `${label}.evidence`, { optional: true });
+    requireWikiRelativePathArray(item, 'evidence', issues, `${label}.evidence`);
+  });
 }
 
 function validateRulesSection(value, issues) {

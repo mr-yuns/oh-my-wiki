@@ -1614,6 +1614,28 @@ test('wiki contract explain summarizes contract shape and schema is valid JSON',
     /Command failed/,
   );
 
+  const invalidAmbiguities = await setupIsolatedWiki('omw-contract-invalid-ambiguities-', 'en');
+  const invalidAmbiguitiesPath = path.join(invalidAmbiguities.wiki, '.omw/contract.json');
+  const invalidAmbiguitiesContract = JSON.parse(await readFile(invalidAmbiguitiesPath, 'utf8'));
+  invalidAmbiguitiesContract.raw.ambiguities = [
+    { kind: 42, root: '../raw', score: 'high', sources: ['scan'], evidence: ['/tmp/raw'] },
+  ];
+  await writeFile(invalidAmbiguitiesPath, `${JSON.stringify(invalidAmbiguitiesContract, null, 2)}\n`);
+  await assert.rejects(
+    async () => {
+      try {
+        await execFileAsync(process.execPath, [cliPath, 'wiki', 'contract', '--validate', '--json'], { env: invalidAmbiguities.env });
+      } catch (error) {
+        assert.match(error.stdout, /raw\.ambiguities\[0\]\.kind must be a string/);
+        assert.match(error.stdout, /raw\.ambiguities\[0\]\.root must be a wiki-relative path/);
+        assert.match(error.stdout, /raw\.ambiguities\[0\]\.score must be an integer/);
+        assert.match(error.stdout, /raw\.ambiguities\[0\]\.evidence\[0\] must be a wiki-relative path/);
+        throw error;
+      }
+    },
+    /Command failed/,
+  );
+
   const invalid = await setupIsolatedWiki('omw-contract-invalid-', 'en');
   const contractPath = path.join(invalid.wiki, '.omw/contract.json');
   const invalidContract = JSON.parse(await readFile(contractPath, 'utf8'));
