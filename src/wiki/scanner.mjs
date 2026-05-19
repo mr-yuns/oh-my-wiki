@@ -140,7 +140,7 @@ async function detectRaw({ wikiPath, files, directories, templates, language, wr
   if (templates.web_clip) {
     types.web_clip = { label: language === 'ko' ? '웹 클리퍼' : 'Web Clipper', folder: detectRawTypeFolderFromDirectories(directories, rawRoot, 'web_clip') || detectRawTypeFolder(files, rawRoot, 'web_clip') || fallbackTypeFolder('web_clip', language), templateKind: 'obsidian-web-clipper' };
   }
-  if (writeManaged) {
+  if (writeManaged && ambiguities.length === 0) {
     await ensureManagedRaw({ wikiPath, rawRoot, types, templates, language, noteType: noteTypes[0] || defaultRawNoteType(language), ingestState: pendingStates[0], sensitivityCheck });
   }
   return {

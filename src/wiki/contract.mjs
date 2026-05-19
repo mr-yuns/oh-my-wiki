@@ -104,6 +104,7 @@ export async function buildWikiStatus(config) {
     ? await safeOptionalDirectoryStatus(status, searchRootPath, 'Search root')
     : { exists: searchRootPath ? await pathExists(searchRootPath) : false, issue: null };
   const rawRoot = status.contract?.raw?.root || '';
+  const rawAmbiguous = (status.contract?.raw?.ambiguities || []).length > 0;
   const rawRootPath = wikiPath && rawRoot ? path.join(wikiPath, rawRoot) : '';
   const rawRootStatus = status.ok && rawRootPath
     ? await safeOptionalDirectoryStatus(status, rawRootPath, 'Raw root')
@@ -140,7 +141,7 @@ export async function buildWikiStatus(config) {
   } else if (status.ok && rawRoot && !rawRootStatus.exists) {
     issues.push(await missingWikiDirectoryIssue(status, rawRootPath, 'Raw root', `wiki raw root does not exist: ${rawRootPath}`));
   }
-  if (status.ok) {
+  if (status.ok && !rawAmbiguous) {
     for (const type of types) {
       if (type.folderIssue) {
         issues.push(type.folderIssue);
@@ -150,6 +151,8 @@ export async function buildWikiStatus(config) {
       if (type.templateIssue) issues.push(type.templateIssue);
       else if (type.template && !type.templateExists) issues.push(`wiki raw type template does not exist (${type.key}): ${type.template}`);
     }
+  }
+  if (status.ok) {
     for (const rule of rules) {
       if (!rule.path) issues.push(`wiki rule path is required (${rule.key})`);
       else if (rule.issue) issues.push(rule.issue);

@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -697,6 +697,8 @@ test('scanner routes ambiguous multi-root raw layouts through contract handoff',
 
   await execFileAsync(process.execPath, setupArgs, { env });
   const contract = JSON.parse(await readFile(path.join(wiki, '.omw/contract.json'), 'utf8'));
+  assert.deepEqual((await readdir(path.join(wiki, 'team-a/raw'))).sort(), ['sessions']);
+  assert.deepEqual((await readdir(path.join(wiki, 'team-b/raw'))).sort(), ['sessions']);
   assert.equal(contract.understanding.complete, false);
   assert(contract.understanding.score < 100);
   assert.equal(contract.understanding.handoff.recommended, true);
@@ -711,17 +713,20 @@ test('scanner routes ambiguous multi-root raw layouts through contract handoff',
   assert.match(textExplanation, /team-a\/raw/);
   assert.match(textExplanation, /team-b\/raw/);
 
-  await execFileAsync(process.execPath, [
-    cliPath,
-    'wiki',
-    'capture',
-    '--title',
-    'Ambiguous dry run',
-    '--body',
-    'Dry-run is allowed because it does not write.',
-    '--dry-run',
-    '--json',
-  ], { env });
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      cliPath,
+      'wiki',
+      'capture',
+      '--title',
+      'Ambiguous dry run',
+      '--body',
+      'Dry-run must wait because Raw planning is ambiguous.',
+      '--dry-run',
+      '--json',
+    ], { env }),
+    /Cannot run capture workflow while Raw root is ambiguous/,
+  );
   await assert.rejects(
     execFileAsync(process.execPath, [
       cliPath,
@@ -733,11 +738,11 @@ test('scanner routes ambiguous multi-root raw layouts through contract handoff',
       'This write must wait for Deep Interview.',
       '--json',
     ], { env }),
-    /Cannot run capture write while Raw root is ambiguous/,
+    /Cannot run capture workflow while Raw root is ambiguous/,
   );
   await assert.rejects(
     execFileAsync(process.execPath, [cliPath, 'wiki', 'ingest', 'team-a/raw/sessions/one.md', '--write-draft', '--json'], { env }),
-    /Cannot run ingest write while Raw root is ambiguous/,
+    /Cannot run ingest workflow while Raw root is ambiguous/,
   );
 });
 

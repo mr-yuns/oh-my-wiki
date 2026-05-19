@@ -97,11 +97,11 @@ The main capability keys are `search`, `capture`, `queue`, `ingest`, `daily`,
 OMW inferred part of the structure instead of detecting it directly.
 
 The score is complete only at `100`. Anything lower means OMW can continue with
-conservative behavior, but write-oriented wiki workflows should first run a
-Wiki-specific Deep Interview to confirm the missing structure. The interview is
-expected to fill the contract dimensions that are not fully detected, such as
-Raw folders, capture templates, ingest rules, daily-report structure, search
-scope, and operating-rule notes.
+conservative behavior, but workflows that depend on uncertain structure should
+first run a Wiki-specific Deep Interview to confirm the missing structure. The
+interview is expected to fill the contract dimensions that are not fully
+detected, such as Raw folders, capture templates, ingest rules,
+daily-report structure, search scope, and operating-rule notes.
 
 The human-readable `omw wiki contract --explain` output includes the handoff
 workflow, handoff prompt, missing dimension labels, reasons, and the specific
@@ -117,8 +117,8 @@ Deep Interview can ask the user to choose the correct structure.
 `raw.ingestStates` lists known Raw states.
 `raw.ambiguities` lists equally plausible Raw roots when OMW cannot safely pick
 one with full confidence. Any ambiguity keeps `understanding.complete` false and
-routes write-oriented workflows through the Wiki-specific Deep Interview
-handoff.
+blocks Raw-dependent capture, daily, and ingest workflows, including dry-runs,
+until the Wiki-specific Deep Interview updates the contract.
 
 `raw.types` maps OMW logical capture types to folders and templates:
 

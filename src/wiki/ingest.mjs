@@ -41,7 +41,7 @@ export async function createIngestPreview({ config, rawRef, options = {} }) {
   await assertSafeOptionalOwmDirectory(config?.wikiPath || '');
   const status = await buildWikiStatus(config);
   if (!status.ok) throw new Error(`Wiki is not ready: ${status.issues.join('; ')}`);
-  if (options.writeDraft || options.promote) assertNoRawAmbiguityForWrite(status, 'ingest write');
+  assertNoRawAmbiguityForWrite(status, 'ingest workflow');
   const rawPath = await resolveRawRef(status, rawRef);
   const rawText = await readFile(rawPath, 'utf8');
   const title = titleFromText(rawText, rawPath);

@@ -24,7 +24,7 @@ export async function captureRawNote({ config, type = DEFAULT_TYPE, title, body 
   if (!title?.trim()) {
     throw new Error('wiki capture requires --title');
   }
-  if (!options.dryRun) assertNoRawAmbiguityForWrite(status, 'capture write');
+  assertNoRawAmbiguityForWrite(status, 'capture workflow');
 
   const now = parseCaptureDate(options);
   const folderPath = rawType.folderPath;

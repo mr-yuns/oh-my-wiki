@@ -18,7 +18,7 @@ export async function createDailyReport({ config, author, team, date, body = '',
   const canonicalAuthor = resolveAuthorName(author, dailyType.naming);
   const platform = options.platform || 'manual';
   const dryRun = Boolean(options.dryRun);
-  if (!dryRun) assertNoRawAmbiguityForWrite(status, 'daily report write');
+  assertNoRawAmbiguityForWrite(status, 'daily report workflow');
   await assertSafeExistingDirectory(status, status.raw.rootPath, 'Raw root');
   if (dailyType.folderPath && await pathExists(dailyType.folderPath)) {
     await assertSafeExistingDirectory(status, dailyType.folderPath, 'Raw type folder');
