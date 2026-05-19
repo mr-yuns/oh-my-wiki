@@ -27,11 +27,11 @@ export async function captureRawNote({ config, type = DEFAULT_TYPE, title, body 
 
   const now = parseCaptureDate(options);
   const folderPath = rawType.folderPath;
+  await assertSafeExistingDirectory(status, status.raw.rootPath, 'Raw root');
+  if (await pathExists(folderPath)) {
+    await assertSafeExistingDirectory(status, folderPath, 'Raw type folder');
+  }
   if (!options.dryRun) {
-    await assertSafeExistingDirectory(status, status.raw.rootPath, 'Raw root');
-    if (await pathExists(folderPath)) {
-      await assertSafeExistingDirectory(status, folderPath, 'Raw type folder');
-    }
     await mkdir(folderPath, { recursive: true });
     await assertSafeExistingDirectory(status, folderPath, 'Raw type folder');
   }

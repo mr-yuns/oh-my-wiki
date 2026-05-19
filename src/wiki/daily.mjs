@@ -18,8 +18,11 @@ export async function createDailyReport({ config, author, team, date, body = '',
   const canonicalAuthor = resolveAuthorName(author, dailyType.naming);
   const platform = options.platform || 'manual';
   const dryRun = Boolean(options.dryRun);
+  await assertSafeExistingDirectory(status, status.raw.rootPath, 'Raw root');
+  if (dailyType.folderPath && await pathExists(dailyType.folderPath)) {
+    await assertSafeExistingDirectory(status, dailyType.folderPath, 'Raw type folder');
+  }
   if (!dryRun) {
-    await assertSafeExistingDirectory(status, status.raw.rootPath, 'Raw root');
     await assertSafeExistingDirectory(status, dailyType.folderPath, 'Raw type folder');
   }
 
