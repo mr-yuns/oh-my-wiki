@@ -69,13 +69,13 @@
       "type": "object",
       "additionalProperties": {
         "oneOf": [
-          { "type": "string" },
+          { "$ref": "#/$defs/wikiRelativePath" },
           {
             "type": "object",
             "required": ["path"],
             "properties": {
               "label": { "type": "string" },
-              "path": { "type": "string" }
+              "path": { "$ref": "#/$defs/wikiRelativePath" }
             },
             "additionalProperties": true
           }
@@ -86,7 +86,7 @@
       "type": "object",
       "required": ["root", "types"],
       "properties": {
-        "root": { "type": "string" },
+        "root": { "$ref": "#/$defs/wikiRelativePath" },
         "noteTypes": {
           "type": "array",
           "items": { "type": "string" }
@@ -98,10 +98,10 @@
             "required": ["folder"],
             "properties": {
               "label": { "type": "string" },
-              "folder": { "type": "string" },
-              "agentTemplate": { "type": "string" },
-              "humanTemplate": { "type": "string" },
-              "template": { "type": "string" },
+              "folder": { "$ref": "#/$defs/wikiRelativePath" },
+              "agentTemplate": { "$ref": "#/$defs/wikiRelativePath" },
+              "humanTemplate": { "$ref": "#/$defs/wikiRelativePath" },
+              "template": { "$ref": "#/$defs/wikiRelativePath" },
               "naming": { "type": "object" }
             },
             "additionalProperties": true
@@ -123,7 +123,7 @@
         },
         "candidateTargets": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": { "$ref": "#/$defs/wikiRelativePath" }
         },
         "ruleKeys": {
           "type": "array",
@@ -139,10 +139,10 @@
       "type": "object",
       "required": ["excludeDirs"],
       "properties": {
-        "root": { "type": "string" },
+        "root": { "$ref": "#/$defs/wikiRelativePathOrEmpty" },
         "excludeDirs": {
           "type": "array",
-          "items": { "type": "string" }
+          "items": { "$ref": "#/$defs/wikiRelativePath" }
         },
         "ranking": {
           "type": "object",
@@ -155,5 +155,16 @@
       "type": "object"
     }
   },
-  "additionalProperties": true
+  "additionalProperties": true,
+  "$defs": {
+    "wikiRelativePath": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?!/)(?![A-Za-z]:[\\\\/])(?!\\\\\\\\)(?!.*(^|[\\\\/])\\.\\.([\\\\/]|$))(?!.*\\u0000).+$"
+    },
+    "wikiRelativePathOrEmpty": {
+      "type": "string",
+      "pattern": "^(|(?!(?:/|[A-Za-z]:[\\\\/]|\\\\\\\\))(?!(?:.*(^|[\\\\/])\\.\\.([\\\\/]|$)))(?!.*\\u0000).+)$"
+    }
+  }
 }

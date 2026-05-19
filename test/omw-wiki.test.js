@@ -848,11 +848,40 @@ test('wiki contract explain summarizes contract shape and schema is valid JSON',
     /Command failed/,
   );
 
+  invalidContract.raw.types = {};
+  invalidContract.raw.root = '../outside';
+  invalidContract.raw.types.agent_session = {
+    folder: 'sessions',
+    agentTemplate: '/tmp/template.md',
+  };
+  invalidContract.rules = {
+    noteWriting: { label: 'Rules', path: '../rules.md' },
+  };
+  invalidContract.search.root = '../notes';
+  invalidContract.ingest.candidateTargets = ['/tmp/promoted.md'];
+  await writeFile(contractPath, `${JSON.stringify(invalidContract, null, 2)}\n`);
+  await assert.rejects(
+    async () => {
+      try {
+        await execFileAsync(process.execPath, [cliPath, 'wiki', 'contract', '--validate', '--json'], { env: invalid.env });
+      } catch (error) {
+        assert.match(error.stdout, /raw\.root must be a wiki-relative path/);
+        assert.match(error.stdout, /raw\.types\.agent_session\.agentTemplate must be a wiki-relative path/);
+        assert.match(error.stdout, /rules\.noteWriting\.path must be a wiki-relative path/);
+        assert.match(error.stdout, /search\.root must be a wiki-relative path/);
+        assert.match(error.stdout, /ingest\.candidateTargets\[0\] must be a wiki-relative path/);
+        throw error;
+      }
+    },
+    /Command failed/,
+  );
+
   const schema = JSON.parse(await readFile('docs/wiki-contract.schema.json', 'utf8'));
   assert.equal(schema.title, 'Oh My Wiki Contract');
   assert(schema.required.includes('raw'));
   assert.equal(schema.properties.understanding.properties.score.maximum, 100);
   assert(schema.properties.search.required.includes('excludeDirs'));
+  assert.equal(schema.properties.raw.properties.root.$ref, '#/$defs/wikiRelativePath');
 });
 
 test('wiki contract explains partial understanding for unfamiliar personal wikis', async () => {

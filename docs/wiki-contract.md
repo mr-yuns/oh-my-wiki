@@ -118,6 +118,11 @@ scope, and operating-rule notes.
 Known user-owned custom raw types are preserved when they define a folder and a
 template.
 
+All contract paths are wiki-relative. Absolute paths, parent traversal (`..`),
+Windows drive paths, UNC paths, and NUL bytes are invalid. `search.root` may be
+an empty string to mean the wiki root; other path fields should name a concrete
+wiki-relative file or directory.
+
 ## Ingest Section
 
 `ingest.pendingStates` tells `omw queue` which Raw notes need attention.

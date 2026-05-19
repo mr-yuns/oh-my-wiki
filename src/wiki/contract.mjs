@@ -157,6 +157,7 @@ export function validateWikiContractShape(contract) {
   requireObject(contract, 'search', issues);
   if (isPlainObject(contract.raw)) {
     requireString(contract.raw, 'root', issues, 'raw.root');
+    requireWikiRelativePath(contract.raw, 'root', issues, 'raw.root');
     requireObject(contract.raw, 'types', issues, 'raw.types');
     requireStringArray(contract.raw, 'noteTypes', issues, 'raw.noteTypes', { optional: true });
     requireStringArray(contract.raw, 'ingestStates', issues, 'raw.ingestStates', { optional: true });
@@ -167,12 +168,17 @@ export function validateWikiContractShape(contract) {
           continue;
         }
         requireString(type, 'folder', issues, `raw.types.${key}.folder`);
+        requireWikiRelativePath(type, 'folder', issues, `raw.types.${key}.folder`);
+        requireOptionalWikiRelativePath(type, 'agentTemplate', issues, `raw.types.${key}.agentTemplate`);
+        requireOptionalWikiRelativePath(type, 'humanTemplate', issues, `raw.types.${key}.humanTemplate`);
+        requireOptionalWikiRelativePath(type, 'template', issues, `raw.types.${key}.template`);
       }
     }
   }
   if (isPlainObject(contract.ingest)) {
     requireStringArray(contract.ingest, 'pendingStates', issues, 'ingest.pendingStates', { optional: true });
     requireStringArray(contract.ingest, 'candidateTargets', issues, 'ingest.candidateTargets', { optional: true });
+    requireWikiRelativePathArray(contract.ingest, 'candidateTargets', issues, 'ingest.candidateTargets');
     requireStringArray(contract.ingest, 'ruleKeys', issues, 'ingest.ruleKeys', { optional: true });
     if (Object.hasOwn(contract.ingest, 'approvalRequiredForPromotedNotes') && typeof contract.ingest.approvalRequiredForPromotedNotes !== 'boolean') {
       issues.push('ingest.approvalRequiredForPromotedNotes must be a boolean');
@@ -180,7 +186,9 @@ export function validateWikiContractShape(contract) {
   }
   if (isPlainObject(contract.search)) {
     requireStringArray(contract.search, 'excludeDirs', issues, 'search.excludeDirs');
+    requireWikiRelativePathArray(contract.search, 'excludeDirs', issues, 'search.excludeDirs');
     if (Object.hasOwn(contract.search, 'root') && typeof contract.search.root !== 'string') issues.push('search.root must be a string');
+    requireOptionalWikiRelativePath(contract.search, 'root', issues, 'search.root', { allowEmpty: true });
     if (Object.hasOwn(contract.search, 'ranking')) {
       if (!isPlainObject(contract.search.ranking)) {
         issues.push('search.ranking must be an object');
@@ -193,8 +201,29 @@ export function validateWikiContractShape(contract) {
       }
     }
   }
+  if (Object.hasOwn(contract, 'rules')) validateRulesSection(contract.rules, issues);
   if (Object.hasOwn(contract, 'understanding')) validateUnderstanding(contract.understanding, issues);
   return { ok: issues.length === 0, issues };
+}
+
+function validateRulesSection(value, issues) {
+  if (!isPlainObject(value)) {
+    issues.push('rules must be an object');
+    return;
+  }
+  for (const [key, rule] of Object.entries(value)) {
+    if (typeof rule === 'string') {
+      if (!isWikiRelativePath(rule)) issues.push(`rules.${key} must be a wiki-relative path`);
+      continue;
+    }
+    if (!isPlainObject(rule)) {
+      issues.push(`rules.${key} must be a string or object`);
+      continue;
+    }
+    requireString(rule, 'path', issues, `rules.${key}.path`);
+    requireWikiRelativePath(rule, 'path', issues, `rules.${key}.path`);
+    if (Object.hasOwn(rule, 'label') && typeof rule.label !== 'string') issues.push(`rules.${key}.label must be a string`);
+  }
 }
 
 function validateUnderstanding(value, issues) {
@@ -250,6 +279,35 @@ function requireStringArray(object, key, issues, label = key, options = {}) {
   if (!Array.isArray(object[key]) || object[key].some((item) => typeof item !== 'string')) {
     issues.push(`${label} must be an array of strings`);
   }
+}
+
+function requireWikiRelativePath(object, key, issues, label = key, options = {}) {
+  if (!Object.hasOwn(object, key) || typeof object[key] !== 'string') return;
+  if (!isWikiRelativePath(object[key], options)) issues.push(`${label} must be a wiki-relative path`);
+}
+
+function requireOptionalWikiRelativePath(object, key, issues, label = key, options = {}) {
+  if (!Object.hasOwn(object, key)) return;
+  if (typeof object[key] !== 'string') {
+    issues.push(`${label} must be a string`);
+    return;
+  }
+  if (!isWikiRelativePath(object[key], options)) issues.push(`${label} must be a wiki-relative path`);
+}
+
+function requireWikiRelativePathArray(object, key, issues, label = key) {
+  if (!Object.hasOwn(object, key) || !Array.isArray(object[key])) return;
+  object[key].forEach((item, index) => {
+    if (typeof item === 'string' && !isWikiRelativePath(item)) issues.push(`${label}[${index}] must be a wiki-relative path`);
+  });
+}
+
+function isWikiRelativePath(value, options = {}) {
+  if (value === '') return Boolean(options.allowEmpty);
+  if (value.includes('\0')) return false;
+  if (path.isAbsolute(value) || /^[A-Za-z]:[\\/]/.test(value) || value.startsWith('\\\\')) return false;
+  const segments = value.split(/[\\/]+/);
+  return !segments.some((segment) => segment === '..');
 }
 
 function isPlainObject(value) {
