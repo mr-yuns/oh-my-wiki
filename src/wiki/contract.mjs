@@ -1,7 +1,8 @@
 import path from 'node:path';
-import { lstat, mkdir, readFile, realpath } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
 import { pathExists, readJsonFile, writeJsonFile } from '../utils/fs.js';
 import { scanWikiContract } from './scanner.mjs';
+import { assertSafeOptionalOwmDirectory } from './safety.mjs';
 
 export const CONTRACT_RELATIVE_PATH = path.join('.omw', 'contract.json');
 export const DEFAULT_WIKI_LANGUAGE = 'en';
@@ -46,7 +47,7 @@ export async function ensureWikiContract(wikiPath, options = {}) {
   if (!wikiPath) return { ok: false, created: false, updated: false, contractPath: '', issues: ['wikiPath is not configured'] };
   if (!(await pathExists(wikiPath))) return { ok: false, created: false, updated: false, contractPath, issues: [`wikiPath does not exist: ${wikiPath}`] };
   const language = normalizeWikiLanguage(options.language || options.wikiLanguage);
-  await assertSafeOwmDirectory(wikiPath);
+  await assertSafeOptionalOwmDirectory(wikiPath);
   const scanned = await scanWikiContract(wikiPath, { ...options, language, writeManaged: true });
   if (await pathExists(contractPath)) {
     const current = await readJsonFile(contractPath, null);
@@ -65,7 +66,7 @@ export async function refreshWikiContract(wikiPath, options = {}) {
   if (!wikiPath) return { ok: false, refreshed: false, contractPath: '', issues: ['wikiPath is not configured'] };
   if (!(await pathExists(wikiPath))) return { ok: false, refreshed: false, contractPath, issues: [`wikiPath does not exist: ${wikiPath}`] };
   const language = normalizeWikiLanguage(options.language || options.wikiLanguage);
-  if (!options.dryRun) await assertSafeOwmDirectory(wikiPath);
+  if (!options.dryRun) await assertSafeOptionalOwmDirectory(wikiPath);
   const scanned = await scanWikiContract(wikiPath, { ...options, language, writeManaged: !options.dryRun });
   const current = await readJsonFile(contractPath, null);
   const next = current?.language === language ? mergeScannerOwnedContract(current, scanned) : scanned;
@@ -190,27 +191,6 @@ export function validateWikiContractShape(contract) {
   }
   if (Object.hasOwn(contract, 'understanding')) validateUnderstanding(contract.understanding, issues);
   return { ok: issues.length === 0, issues };
-}
-
-async function assertSafeOwmDirectory(wikiPath) {
-  const omwRoot = path.join(wikiPath, '.omw');
-  if (!(await pathExists(omwRoot))) return;
-  const omwStat = await lstat(omwRoot);
-  if (omwStat.isSymbolicLink() || !omwStat.isDirectory()) {
-    throw new Error(`.omw directory must be a real directory: ${omwRoot}`);
-  }
-  const [wikiRealPath, omwRealPath] = await Promise.all([
-    realpath(wikiPath),
-    realpath(omwRoot),
-  ]);
-  if (!isInsidePath(wikiRealPath, omwRealPath)) {
-    throw new Error(`.omw directory must stay inside the wiki: ${omwRoot}`);
-  }
-}
-
-function isInsidePath(parentPath, childPath) {
-  const relative = path.relative(parentPath, childPath);
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative));
 }
 
 function validateUnderstanding(value, issues) {

@@ -386,6 +386,29 @@ test('wiki capture allocates unique raw note paths under concurrent writes', asy
   assert.equal(queue.total, captures.length);
 });
 
+test('wiki capture refuses symlinked Raw type folders before writing', async () => {
+  const { root, env, wiki } = await setupIsolatedWiki('omw-capture-raw-symlink-', 'en');
+  const external = path.join(root, 'external-raw');
+  const rawFolder = path.join(wiki, 'en/01. Inbox/01-01. Raw/01-01-03. Agent Sessions');
+  await mkdir(external, { recursive: true });
+  await rm(rawFolder, { recursive: true, force: true });
+  await symlink(external, rawFolder, 'dir');
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      cliPath,
+      'wiki',
+      'capture',
+      '--title',
+      'Blocked symlink capture',
+      '--body',
+      'This must not be written outside the wiki.',
+    ], { env }),
+    /Raw type folder must be a real directory/,
+  );
+  assert.equal((await readdir(external)).length, 0);
+});
+
 test('wiki daily writes localized raw reports for English and Korean base wikis', async () => {
   for (const language of ['en', 'ko']) {
     const { env } = await setupIsolatedWiki(`omw-daily-${language}-`, language);
@@ -420,6 +443,33 @@ test('wiki daily writes localized raw reports for English and Korean base wikis'
       assert.match(note, /민감정보검사: 완료/);
     }
   }
+});
+
+test('wiki daily refuses symlinked Raw member folders before writing', async () => {
+  const { root, env, wiki } = await setupIsolatedWiki('omw-daily-raw-symlink-', 'en');
+  const external = path.join(root, 'external-daily');
+  const dailyRoot = path.join(wiki, 'en/01. Inbox/01-01. Raw/01-01-02. Daily Reports');
+  const memberFolder = path.join(dailyRoot, 'Alex');
+  await mkdir(external, { recursive: true });
+  await symlink(external, memberFolder, 'dir');
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      cliPath,
+      'wiki',
+      'daily',
+      '--author',
+      'Alex',
+      '--team',
+      'Docs',
+      '--date',
+      '2026-05-18',
+      '--body',
+      'This must not be written outside the wiki.',
+    ], { env }),
+    /Daily report member folder must be a real directory/,
+  );
+  assert.equal((await readdir(external)).length, 0);
 });
 
 test('wiki daily updates English reports using English sections', async () => {

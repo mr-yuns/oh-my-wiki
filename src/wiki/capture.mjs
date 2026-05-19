@@ -4,6 +4,8 @@ import { buildWikiStatus } from './contract.mjs';
 import { frontmatterScalar, redactSensitiveText } from './redaction.mjs';
 import { renderWikiTemplate } from './template.mjs';
 import { assertRawNoteSafety } from './validation.mjs';
+import { pathExists } from '../utils/fs.js';
+import { assertSafeExistingDirectory } from './safety.mjs';
 
 const DEFAULT_TYPE = 'agent_session';
 
@@ -26,7 +28,12 @@ export async function captureRawNote({ config, type = DEFAULT_TYPE, title, body 
   const now = parseCaptureDate(options);
   const folderPath = rawType.folderPath;
   if (!options.dryRun) {
+    await assertSafeExistingDirectory(status, status.raw.rootPath, 'Raw root');
+    if (await pathExists(folderPath)) {
+      await assertSafeExistingDirectory(status, folderPath, 'Raw type folder');
+    }
     await mkdir(folderPath, { recursive: true });
+    await assertSafeExistingDirectory(status, folderPath, 'Raw type folder');
   }
   const prefix = notePrefix(rawType, status.contract?.raw?.naming);
   const sequence = await nextSequence(folderPath, prefix);

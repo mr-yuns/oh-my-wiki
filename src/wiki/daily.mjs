@@ -5,6 +5,7 @@ import { frontmatterScalar, redactSensitiveText } from './redaction.mjs';
 import { renderWikiTemplate } from './template.mjs';
 import { assertRawNoteSafety } from './validation.mjs';
 import { pathExists, writeTextFileAtomic } from '../utils/fs.js';
+import { assertSafeExistingDirectory } from './safety.mjs';
 
 export async function createDailyReport({ config, author, team, date, body = '', options = {} }) {
   if (!author?.trim()) throw new Error('wiki daily requires --author');
@@ -17,10 +18,15 @@ export async function createDailyReport({ config, author, team, date, body = '',
   const canonicalAuthor = resolveAuthorName(author, dailyType.naming);
   const platform = options.platform || 'manual';
   const dryRun = Boolean(options.dryRun);
+  if (!dryRun) {
+    await assertSafeExistingDirectory(status, status.raw.rootPath, 'Raw root');
+    await assertSafeExistingDirectory(status, dailyType.folderPath, 'Raw type folder');
+  }
 
   const execute = async () => {
     const memberFolder = await ensureMemberFolder(dailyType.folderPath, canonicalAuthor, dailyType.naming, { dryRun });
     const memberPath = path.join(dailyType.folderPath, memberFolder);
+    if (!dryRun) await assertSafeExistingDirectory(status, memberPath, 'Daily report member folder');
     const plannedNotePath = path.join(memberPath, renderReportFileName(dailyType.naming, { author: canonicalAuthor, memberFolder, reportDate }));
     const notePath = await findExistingReportPath(memberPath, reportDate, plannedNotePath);
     const result = await buildDailyReportWrite({
