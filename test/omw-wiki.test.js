@@ -884,6 +884,7 @@ test('setup regenerates scanner-owned contract sections from the connected wiki'
   assert.equal(updated.language, 'en');
   assert.equal(updated.generatedBy, 'omw-contract-scanner');
   assert.equal(updated.rules.noteWriting.path, 'en/06. Resources/06-01. Guides/06-01-02. Note Writing Rules.md');
+  assert.equal(updated.rules.rawOperation.path, 'en/06. Resources/06-01. Guides/06-01-05. Raw Note Operating Rules.md');
   assert.equal(updated.rules.aiPlatform.path, 'en/06. Resources/06-01. Guides/06-01-04. AI Tool Integration Principles.md');
 });
 

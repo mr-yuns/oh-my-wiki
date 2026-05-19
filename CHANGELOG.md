@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.3
+
+- Prefer explicit Raw operation guide matches when regenerating wiki contracts
+  so base-wiki `rawOperation` points at Raw Note Operating Rules instead of the
+  broader agent knowledge capture guide.
+
 ## 0.4.2
 
 - Capture bounded, redacted Stop-hook transcript excerpts while keeping hook

@@ -434,7 +434,8 @@ function detectRules(files, language, profile) {
   add('agentKnowledge', findRule(ruleFiles, /agent|codex|claude|에이전트/i, language));
   add('noteWriting', findRule(ruleFiles, /note writing|writing rules|노트 작성|작성 규칙/i, language));
   add('wikiOperation', findRule(ruleFiles, /wiki operating|operation|procedure|운영|절차/i, language));
-  add('rawOperation', findRule(ruleFiles, /raw|capture|ingest|수집|원시/i, language));
+  add('rawOperation', findRule(ruleFiles, /raw note operating|raw operation|raw.*rules|raw 노트 운영|원시.*운영|수집.*규칙/i, language)
+    || findRule(ruleFiles, /raw|capture|ingest|수집|원시/i, language));
   add('knowledgeMap', findRule(ruleFiles, /knowledge map|index|map|지식 지도|지도/i, language));
   add('searchProperties', findRule(ruleFiles, /property|catalog|schema|frontmatter|카탈로그|속성/i, language));
   add('aiPlatform', findRule(ruleFiles, /ai tool|ai platform|tool integration|ai 도구|ai 플랫폼|도구 연동/i, language));

@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "generatedBy": "omw-contract-scanner",
-  "generatedAt": "2026-05-18T15:15:34.394Z",
+  "generatedAt": "2026-05-19T12:35:53.116Z",
   "defaultLanguage": "en",
   "language": "en",
   "wikiName": ".wiki",
@@ -98,8 +98,8 @@
       "path": "en/06. Resources/06-01. Guides/06-01-03. Wiki Operating Procedure.md"
     },
     "rawOperation": {
-      "label": "Agent Knowledge Capture Guide",
-      "path": "en/06. Resources/06-01. Guides/06-01-01. Agent Knowledge Capture Guide.md"
+      "label": "Raw Note Operating Rules",
+      "path": "en/06. Resources/06-01. Guides/06-01-05. Raw Note Operating Rules.md"
     },
     "knowledgeMap": {
       "label": "Knowledge Map",
