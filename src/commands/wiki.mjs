@@ -261,9 +261,19 @@ function renderContractExplanation(explanation) {
   lines.push(`- promoted-note approval: ${explanation.ingest.approvalRequiredForPromotedNotes ? 'required' : 'not required'}`);
   lines.push(`- understanding: ${explanation.understanding.score}%${explanation.understanding.complete ? ' complete' : ' incomplete'}`);
   if (explanation.understanding.handoff?.recommended) {
-    lines.push(`- handoff: ${explanation.understanding.handoff.workflow || 'wiki-deep-interview'}`);
-    const missing = (explanation.understanding.missingDimensions || []).map((item) => item.key).join(', ');
-    if (missing) lines.push(`- missing dimensions: ${missing}`);
+    const handoff = explanation.understanding.handoff;
+    lines.push(`- handoff: ${handoff.workflow || 'wiki-deep-interview'}`);
+    if (handoff.prompt) lines.push(`- handoff prompt: ${handoff.prompt}`);
+    const missingDimensions = explanation.understanding.missingDimensions || [];
+    if (missingDimensions.length > 0) {
+      lines.push('- missing dimensions:');
+      for (const item of missingDimensions) {
+        const label = item.label ? ` (${item.label})` : '';
+        const reason = item.reason ? `: ${item.reason}` : '';
+        lines.push(`  - ${item.key}${label}${reason}`);
+        if (item.question) lines.push(`    question: ${item.question}`);
+      }
+    }
   }
   if (explanation.issues.length > 0) {
     lines.push('', 'Issues:');

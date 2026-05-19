@@ -1488,6 +1488,20 @@ test('wiki contract explains partial understanding for unfamiliar personal wikis
   assert(explained.understanding.missingDimensions.some((item) => item.key === 'templates'));
   assert.match(explained.understanding.handoff.prompt, /Deep Interview/);
 
+  const textExplanation = (await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'contract',
+    '--explain',
+  ], { env })).stdout;
+  assert.match(textExplanation, /understanding: \d+% incomplete/);
+  assert.match(textExplanation, /handoff: wiki-deep-interview/);
+  assert.match(textExplanation, /handoff prompt: Run a Wiki-specific Deep Interview/);
+  assert.match(textExplanation, /rules \(Wiki operating rules\): not detected/);
+  assert.match(textExplanation, /question: Where are the wiki operating rules/);
+  assert.match(textExplanation, /templates \(Capture templates\): partially inferred; user confirmation required/);
+  assert.match(textExplanation, /question: Which templates should OMW use/);
+
   const contract = JSON.parse(await readFile(path.join(wiki, '.omw/contract.json'), 'utf8'));
   assert.equal(contract.understanding.score, explained.understanding.score);
   assert.equal(contract.understanding.policy, 'conservative-adaptation');

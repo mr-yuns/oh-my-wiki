@@ -100,6 +100,11 @@ expected to fill the contract dimensions that are not fully detected, such as
 Raw folders, capture templates, ingest rules, daily-report structure, search
 scope, and operating-rule notes.
 
+The human-readable `omw wiki contract --explain` output includes the handoff
+workflow, handoff prompt, missing dimension labels, reasons, and the specific
+question each dimension needs answered. The JSON form keeps the same fields
+under `understanding` for automation.
+
 ## Raw Section
 
 `raw.root` is the path, relative to the wiki root, where Raw notes live.
