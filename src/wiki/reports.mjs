@@ -9,9 +9,11 @@ import { buildWikiStatus } from './contract.mjs';
 import { assertSafeExistingDirectory, assertSafeExistingFile } from './safety.mjs';
 import { storedSecretIssues } from './validation.mjs';
 
+const WIKI_UNAVAILABLE_MESSAGE = 'Active wiki is not available; run omw setup, set OMW_WIKI_PATH, or use the CLI default repository .wiki.';
+
 export async function createRawIngestReport({ config, options = {} }) {
   const status = await buildWikiStatus(config);
-  if (!status.configured) throw new Error('Wiki is not configured. Run omw setup first.');
+  if (!status.configured) throw new Error(WIKI_UNAVAILABLE_MESSAGE);
   if (isBaseWiki(status)) {
     return {
       ok: true,
@@ -29,7 +31,7 @@ export async function createRawIngestReport({ config, options = {} }) {
 
 export async function createDailyReportSummary({ config, options = {} }) {
   const status = await buildWikiStatus(config);
-  if (!status.configured) throw new Error('Wiki is not configured. Run omw setup first.');
+  if (!status.configured) throw new Error(WIKI_UNAVAILABLE_MESSAGE);
   if (isBaseWiki(status)) {
     return {
       ok: true,
@@ -50,7 +52,7 @@ export async function createDailyReportSummary({ config, options = {} }) {
 
 export async function validateWiki({ config }) {
   const status = await buildWikiStatus(config);
-  if (!status.configured) throw new Error('Wiki is not configured. Run omw setup first.');
+  if (!status.configured) throw new Error(WIKI_UNAVAILABLE_MESSAGE);
   const profile = status.contract?.source?.profile || 'unknown';
   const result = profile === 'omw-base-wiki'
     ? validateBaseWiki({ root: status.wikiPath })

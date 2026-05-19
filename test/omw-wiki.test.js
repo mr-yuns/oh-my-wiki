@@ -6,6 +6,8 @@ import { promisify } from 'node:util';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { contractUnderstandingNotice } from '../src/wiki/contract.mjs';
+import { createDailyReportSummary, createRawIngestReport, validateWiki } from '../src/wiki/reports.mjs';
+import { ensureWikiSearchIndex, searchWiki } from '../src/wiki/search.mjs';
 
 const execFileAsync = promisify(execFile);
 const cliPath = path.resolve('src/cli/omw.js');
@@ -83,6 +85,29 @@ async function snapshotUserMarkdown(root, relativeDir = '') {
 async function sqliteAvailable() {
   return import('node:sqlite').then(() => true, () => false);
 }
+
+test('internal wiki APIs explain active wiki setup when no config is supplied', async () => {
+  const expected = /Active wiki is not available; run omw setup, set OMW_WIKI_PATH, or use the CLI default repository \.wiki\./;
+  await assert.rejects(
+    searchWiki({ config: null, query: 'Knowledge Map' }),
+    expected,
+  );
+  await assert.rejects(
+    createRawIngestReport({ config: null }),
+    expected,
+  );
+  await assert.rejects(
+    createDailyReportSummary({ config: null }),
+    expected,
+  );
+  await assert.rejects(
+    validateWiki({ config: null }),
+    expected,
+  );
+  const index = await ensureWikiSearchIndex({ config: null });
+  assert.equal(index.ok, false);
+  assert.match(index.issues[0], expected);
+});
 
 test('setup uses the repository base wiki by default', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'omw-setup-'));

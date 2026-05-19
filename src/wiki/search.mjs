@@ -10,13 +10,14 @@ const SEARCH_BACKENDS = new Map([
 ]);
 // Backends require a numeric LIMIT; use a practical upper bound when caller-side filters need all matches.
 const ALL_MATCHES_LIMIT = 1_000_000_000;
+const WIKI_UNAVAILABLE_MESSAGE = 'Active wiki is not available; run omw setup, set OMW_WIKI_PATH, or use the CLI default repository .wiki.';
 
 export async function searchWiki({ config, query, limit = 20, backend = 'auto', filters = {}, sort = 'relevance', refreshIndex = true }) {
   const normalized = String(query || '').trim();
   if (!normalized) throw new Error('wiki search requires a query');
   const status = await buildWikiStatus(config);
   if (!status.configured || !status.wikiPath || !status.wikiExists) {
-    throw new Error('Wiki is not configured or does not exist');
+    throw new Error(WIKI_UNAVAILABLE_MESSAGE);
   }
   const selectedBackend = await resolveSearchBackend(backend);
   const rankingOverrides = status.search?.ranking || {};
@@ -72,7 +73,7 @@ export async function ensureWikiSearchIndex({ config }) {
       ok: false,
       indexPath: '',
       created: false,
-      issues: ['Wiki is not configured or does not exist'],
+      issues: [WIKI_UNAVAILABLE_MESSAGE],
     };
   }
   const rankingOverrides = status.search?.ranking || {};
