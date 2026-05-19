@@ -36,13 +36,13 @@ test('README command table and CLI help stay bidirectionally mapped', async () =
     tableCommands,
     help,
     command: 'omw capture',
-    expectedOptions: ['--title', '--type', '--stdin', '--body', '--json'],
+    expectedOptions: ['--title', '--type', '--stdin', '--body', '--dry-run', '--json'],
   });
   assertOptionParity({
     tableCommands,
     help: wikiHelp,
     command: 'omw wiki capture',
-    expectedOptions: ['--title', '--type', '--stdin', '--body', '--json'],
+    expectedOptions: ['--title', '--type', '--stdin', '--body', '--dry-run', '--json'],
   });
   assertOptionParity({
     tableCommands,
@@ -76,13 +76,13 @@ test('README command table and CLI help stay bidirectionally mapped', async () =
     tableCommands,
     help,
     command: 'omw daily',
-    expectedOptions: ['--author', '--team', '--date', '--stdin', '--body', '--json'],
+    expectedOptions: ['--author', '--team', '--date', '--stdin', '--body', '--dry-run', '--json'],
   });
   assertOptionParity({
     tableCommands,
     help: wikiHelp,
     command: 'omw wiki daily',
-    expectedOptions: ['--author', '--team', '--date', '--stdin', '--body', '--json'],
+    expectedOptions: ['--author', '--team', '--date', '--stdin', '--body', '--dry-run', '--json'],
   });
   assert(readme.includes('understanding score'));
   assert(readme.includes('Wiki-specific Deep Interview'));
