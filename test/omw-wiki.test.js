@@ -642,9 +642,30 @@ test('wiki capture refuses symlinked Raw templates before reading', async () => 
       '--body',
       'This template must not be read through a symlink.',
     ], { env }),
-    /Wiki template must be a real file/,
+    /Raw template must be a real file/,
   );
   assert.match(await readFile(external, 'utf8'), /# \{\{title\}\}/);
+});
+
+test('wiki capture refuses broken symlinked Raw templates before treating them as missing', async () => {
+  const { root, env, wiki } = await setupIsolatedWiki('omw-capture-template-broken-symlink-', 'en');
+  const missingExternal = path.join(root, 'missing-template.md');
+  const templatePath = path.join(wiki, 'en/08. Templates/08-01. Inbox/08-01-02. Human/08-01-02-02. Agent Session Raw Template.md');
+  await rm(templatePath, { force: true });
+  await symlink(missingExternal, templatePath);
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      cliPath,
+      'wiki',
+      'capture',
+      '--title',
+      'Blocked broken template capture',
+      '--body',
+      'This template must not be ignored as a missing file.',
+    ], { env }),
+    /Raw template must be a real file/,
+  );
 });
 
 test('wiki daily writes localized raw reports for English and Korean base wikis', async () => {
@@ -1267,7 +1288,7 @@ test('wiki validate reports unsafe contract raw roots and rule notes', async () 
       try {
         await execFileAsync(process.execPath, [cliPath, 'wiki', 'validate'], { env: ruleFixture.env });
       } catch (error) {
-        assert.match(error.stdout, /Wiki rule must be a real file/);
+        assert.match(error.stdout, /Wiki rule note must be a real file/);
         throw error;
       }
     },
@@ -2286,7 +2307,7 @@ test('wiki ingest refuses symlinked rule notes before reading summaries', async 
 
   await assert.rejects(
     execFileAsync(process.execPath, [cliPath, 'wiki', 'ingest', rawRef, '--json'], { env }),
-    /Wiki rule must be a real file/,
+    /Wiki rule note must be a real file/,
   );
 });
 

@@ -1,17 +1,15 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { pathExists } from '../utils/fs.js';
-import { assertSafeExistingFile } from './safety.mjs';
+import { assertSafeOptionalFile } from './safety.mjs';
 
 export async function renderWikiTemplate({ wikiPath, template, values }) {
   if (!template) {
     throw new Error('wiki contract raw type does not define a template');
   }
   const templatePath = path.join(wikiPath, template);
-  if (!(await pathExists(templatePath))) {
+  if (!(await assertSafeOptionalFile({ wikiPath }, templatePath, 'Wiki template'))) {
     throw new Error(`wiki template does not exist: ${template}`);
   }
-  await assertSafeExistingFile({ wikiPath }, templatePath, 'Wiki template');
   const source = await readFile(templatePath, 'utf8');
   const rendered = source.replace(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g, (match, key) => {
     if (!Object.hasOwn(values, key)) return match;
