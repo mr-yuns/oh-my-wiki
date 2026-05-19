@@ -239,6 +239,13 @@ export function contractUnderstandingNotice(status, action = 'write-oriented wik
   };
 }
 
+export function assertNoRawAmbiguityForWrite(status, action = 'write-oriented wiki workflow') {
+  const ambiguities = status?.contract?.raw?.ambiguities || [];
+  if (ambiguities.length === 0) return;
+  const roots = ambiguities.map((item) => item.root).filter(Boolean).join(', ');
+  throw new Error(`Cannot run ${action} while Raw root is ambiguous (${roots}); run wiki-deep-interview and refresh the wiki contract first.`);
+}
+
 export function validateWikiContractShape(contract) {
   const issues = [];
   if (!isPlainObject(contract)) return { ok: false, issues: ['wiki contract must be a JSON object'] };

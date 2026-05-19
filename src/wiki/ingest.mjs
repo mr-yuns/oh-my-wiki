@@ -1,6 +1,6 @@
 import { lstat, open, readdir, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
-import { buildWikiStatus, contractUnderstandingNotice, loadWikiRuleSummaries } from './contract.mjs';
+import { assertNoRawAmbiguityForWrite, buildWikiStatus, contractUnderstandingNotice, loadWikiRuleSummaries } from './contract.mjs';
 import { pathExists, writeTextFileAtomic } from '../utils/fs.js';
 import { assertSafeExistingDirectory, assertSafeExistingFile, assertSafeOptionalOwmDirectory, ensureSafeDirectory, isInsidePath } from './safety.mjs';
 
@@ -41,6 +41,7 @@ export async function createIngestPreview({ config, rawRef, options = {} }) {
   await assertSafeOptionalOwmDirectory(config?.wikiPath || '');
   const status = await buildWikiStatus(config);
   if (!status.ok) throw new Error(`Wiki is not ready: ${status.issues.join('; ')}`);
+  if (options.writeDraft || options.promote) assertNoRawAmbiguityForWrite(status, 'ingest write');
   const rawPath = await resolveRawRef(status, rawRef);
   const rawText = await readFile(rawPath, 'utf8');
   const title = titleFromText(rawText, rawPath);

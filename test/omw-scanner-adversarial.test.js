@@ -710,6 +710,35 @@ test('scanner routes ambiguous multi-root raw layouts through contract handoff',
   assert.match(textExplanation, /raw ambiguities:/);
   assert.match(textExplanation, /team-a\/raw/);
   assert.match(textExplanation, /team-b\/raw/);
+
+  await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'capture',
+    '--title',
+    'Ambiguous dry run',
+    '--body',
+    'Dry-run is allowed because it does not write.',
+    '--dry-run',
+    '--json',
+  ], { env });
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      cliPath,
+      'wiki',
+      'capture',
+      '--title',
+      'Ambiguous write',
+      '--body',
+      'This write must wait for Deep Interview.',
+      '--json',
+    ], { env }),
+    /Cannot run capture write while Raw root is ambiguous/,
+  );
+  await assert.rejects(
+    execFileAsync(process.execPath, [cliPath, 'wiki', 'ingest', 'team-a/raw/sessions/one.md', '--write-draft', '--json'], { env }),
+    /Cannot run ingest write while Raw root is ambiguous/,
+  );
 });
 
 test('scanner preserves custom contract extensions while regenerating scanner-owned sections', async () => {

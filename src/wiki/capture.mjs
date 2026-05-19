@@ -1,6 +1,6 @@
 import { open, readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { buildWikiStatus, contractUnderstandingNotice } from './contract.mjs';
+import { assertNoRawAmbiguityForWrite, buildWikiStatus, contractUnderstandingNotice } from './contract.mjs';
 import { frontmatterScalar, redactSensitiveText } from './redaction.mjs';
 import { renderWikiTemplate } from './template.mjs';
 import { assertRawNoteSafety } from './validation.mjs';
@@ -24,6 +24,7 @@ export async function captureRawNote({ config, type = DEFAULT_TYPE, title, body 
   if (!title?.trim()) {
     throw new Error('wiki capture requires --title');
   }
+  if (!options.dryRun) assertNoRawAmbiguityForWrite(status, 'capture write');
 
   const now = parseCaptureDate(options);
   const folderPath = rawType.folderPath;
