@@ -17,6 +17,7 @@ import {
 } from '../platforms/claude/hooks.js';
 import {
   readConfig,
+  readConfigWithSource,
   resolveWikiPath,
   SETUP_COMMAND_HINT,
   validateConfig,
@@ -151,12 +152,18 @@ function defaultBaseWikiPath() {
 async function doctor(argv = []) {
   const options = parseOptions(argv);
   const dirs = await ensureStateDirs();
-  const config = await readConfig();
+  const configSource = await readConfigWithSource();
+  const config = configSource.config;
   const validation = await validateConfig(config);
   const wikiStatus = await buildWikiStatus(config);
   const omx = checkCommandAvailable(resolveOmxBin(config));
   const omc = checkCommandAvailable(config?.omcBin || 'omc');
-  const issues = [...new Set([...validation.issues, ...wikiStatus.issues])];
+  const hooks = {
+    codex: await codexHookStatus({ codexHome: options['codex-home'] }),
+    claude: await claudeHookStatus({ claudeHome: options['claude-home'] }),
+  };
+  const issues = [...new Set([...(configSource.issues || []), ...validation.issues, ...wikiStatus.issues])];
+  const warnings = hookWarnings({ config, hooks });
   const report = {
     generatedAt: new Date().toISOString(),
     ok: issues.length === 0,
@@ -172,6 +179,8 @@ async function doctor(argv = []) {
     wiki: wikiStatus,
     omx,
     omc,
+    hooks,
+    warnings,
     issues,
   };
   if (options.json) {
@@ -184,6 +193,12 @@ async function doctor(argv = []) {
   console.log(`- wiki: ${report.config.wikiPath || '(not configured)'}${report.config.wikiPathExists ? ' (exists)' : ''}`);
   console.log(`- omx: ${omx.available ? 'available' : 'optional / unavailable'}`);
   console.log(`- omc: ${omc.available ? 'available' : 'optional / unavailable'}`);
+  console.log(`- Codex hooks: ${hookSummary(hooks.codex, 'codex')}`);
+  console.log(`- Claude hooks: ${hookSummary(hooks.claude, 'claude')}`);
+  if (warnings.length > 0) {
+    console.log('\nHook warnings:');
+    for (const warning of warnings) console.log(`- ${warning}`);
+  }
   if (issues.length > 0) {
     console.log('\nIssues:');
     for (const issue of issues) console.log(`- ${issue}`);
@@ -191,6 +206,44 @@ async function doctor(argv = []) {
   }
   console.log('\nOMW core is ready.');
   return 0;
+}
+
+function hookWarnings({ config, hooks }) {
+  const warnings = [];
+  const autoCapture = Boolean(config?.wikiAutoCapture);
+  if (autoCapture && !hooks.codex.codexHooksFeatureEnabled) {
+    warnings.push('Codex hooks feature is disabled; run `omw codex-hooks install` to enable OMW Codex hooks.');
+  }
+  for (const [platform, status] of Object.entries(hooks)) {
+    const label = platform === 'codex' ? 'Codex' : 'Claude';
+    for (const issue of status.issues || []) {
+      warnings.push(issue);
+    }
+    const stop = status.events?.Stop || {};
+    if (autoCapture && !stop.installed) {
+      warnings.push(`${label} Stop hook is not installed; run \`omw ${platform}-hooks install\` to enable wiki auto-capture for ${label}.`);
+    }
+    const stale = Object.values(status.events || {}).reduce((total, event) => total + (event.staleOmwLikeEntries || 0), 0);
+    if (stale > 0) {
+      warnings.push(`${label} has ${stale} stale OMW-like hook entr${stale === 1 ? 'y' : 'ies'}; run \`omw ${platform}-hooks install\` to refresh managed hooks.`);
+    }
+    const driftedEvents = Object.entries(status.events || {})
+      .filter(([, event]) => event.installed && event.stateRootMatches === false)
+      .map(([eventName]) => eventName);
+    if (driftedEvents.length > 0) {
+      warnings.push(`${label} hooks use a stale OMW state root for ${driftedEvents.join(', ')}; run \`omw ${platform}-hooks install\` to refresh managed hooks.`);
+    }
+  }
+  return warnings;
+}
+
+function hookSummary(status, platform) {
+  const stopInstalled = status.events?.Stop?.installed;
+  const stale = Object.values(status.events || {}).reduce((total, event) => total + (event.staleOmwLikeEntries || 0), 0);
+  const parts = [stopInstalled ? 'Stop installed' : 'Stop missing'];
+  if (platform === 'codex') parts.push(status.codexHooksFeatureEnabled ? 'feature enabled' : 'feature disabled');
+  if (stale > 0) parts.push(`${stale} stale`);
+  return parts.join(', ');
 }
 
 async function wiki(subcommand, argv = []) {
@@ -343,8 +396,8 @@ function printWikiHelp() {
 Usage:
   omw wiki status [--json]
   omw wiki init [--wiki <path>] [--language en|ko] [--json]
-  omw wiki refresh [--target all|contract|index] [--json]
-  omw wiki contract [--refresh] [--explain|--validate] [--json]
+  omw wiki refresh [--target all|contract|index] [--dry-run] [--json]
+  omw wiki contract [--refresh] [--dry-run] [--explain|--validate] [--json]
   omw wiki search "<query>" [--backend auto|sqlite|scan] [--limit <n>] [--type <type>] [--status <status>] [--path <path>] [--sort relevance|path|title] [--json]
   omw wiki capture --title "<title>" [--type agent_session|discussion] [--stdin|--body <text>] [--json]
   omw wiki queue [--json]

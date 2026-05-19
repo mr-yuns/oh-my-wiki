@@ -37,16 +37,19 @@ export async function ensureSqliteSearchIndex({ wikiPath, searchRootPath, exclud
   const existed = await pathExists(dbPath);
   await mkdir(path.dirname(dbPath), { recursive: true });
   const db = new sqlite.DatabaseSync(dbPath);
+  let stats;
   try {
     prepareSchema(db);
-    await syncIndex({ db, wikiPath, searchRootPath: searchRootPath || wikiPath, excludeDirs });
+    stats = await syncIndex({ db, wikiPath, searchRootPath: searchRootPath || wikiPath, excludeDirs });
   } finally {
     db.close();
   }
   return {
     ok: true,
+    backend: 'sqlite',
     indexPath: dbPath,
     created: !existed,
+    ...stats,
   };
 }
 
@@ -109,12 +112,16 @@ async function syncIndex({ db, wikiPath, searchRootPath, excludeDirs }) {
   const deleteNote = db.prepare('DELETE FROM notes WHERE relative_path = ?');
 
   const updates = [];
+  let unchanged = 0;
   for (const file of files) {
     const relativePath = path.relative(wikiPath, file);
     seen.add(relativePath);
     const metadata = await noteFileMetadata(file);
     const current = select.get(relativePath);
-    if (current && current.mtime_ms === metadata.mtimeMs && current.size === metadata.size && current.para_section) continue;
+    if (current && current.mtime_ms === metadata.mtimeMs && current.size === metadata.size && current.para_section) {
+      unchanged += 1;
+      continue;
+    }
     const body = await readFile(file, 'utf8').catch(() => '');
     const searchMetadata = noteSearchMetadata(body, path.relative(root, file));
     updates.push({
@@ -129,6 +136,8 @@ async function syncIndex({ db, wikiPath, searchRootPath, excludeDirs }) {
   for (const relativePath of indexedPaths) {
     if (!seen.has(relativePath)) updates.push({ relativePath, delete: true });
   }
+  const deleted = updates.filter((item) => item.delete).length;
+  const indexed = updates.length - deleted;
   if (updates.length > 0) {
     db.exec('BEGIN');
     try {
@@ -158,6 +167,13 @@ async function syncIndex({ db, wikiPath, searchRootPath, excludeDirs }) {
       throw error;
     }
   }
+  return {
+    scannedFiles: files.length,
+    indexedFiles: files.length,
+    changedFiles: indexed,
+    deletedFiles: deleted,
+    unchangedFiles: unchanged,
+  };
 }
 
 function queryIndex({ db, wikiPath, query, limit, ranking }) {

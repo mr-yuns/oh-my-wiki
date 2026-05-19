@@ -1,6 +1,6 @@
 import path from 'node:path';
-import { mkdir, writeFile } from 'node:fs/promises';
-import { pathExists } from '../utils/fs.js';
+import { mkdir } from 'node:fs/promises';
+import { pathExists, writeTextFileAtomic } from '../utils/fs.js';
 import { inventoryDirectories, inventoryMarkdownFiles } from './scanner/inventory.mjs';
 import { normalizeComparable } from './scanner/text.mjs';
 
@@ -362,7 +362,7 @@ async function ensureManagedRaw({ wikiPath, rawRoot, types, templates, language,
       const templatePath = path.join(wikiPath, type.agentTemplate);
       if (!(await pathExists(templatePath))) {
         await mkdir(path.dirname(templatePath), { recursive: true });
-        await writeFile(templatePath, fallbackTemplate(path.basename(type.agentTemplate, '.md'), { language, noteType, ingestState, sensitivityCheck }));
+        await writeTextFileAtomic(templatePath, fallbackTemplate(path.basename(type.agentTemplate, '.md'), { language, noteType, ingestState, sensitivityCheck }));
       }
     }
   }

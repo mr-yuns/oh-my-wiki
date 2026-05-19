@@ -1,4 +1,4 @@
-import { mkdir, readdir, writeFile } from 'node:fs/promises';
+import { mkdir, open, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { buildWikiStatus } from './contract.mjs';
 import { frontmatterScalar, redactSensitiveText } from './redaction.mjs';
@@ -30,8 +30,8 @@ export async function captureRawNote({ config, type = DEFAULT_TYPE, title, body 
   }
   const prefix = notePrefix(rawType, status.contract?.raw?.naming);
   const sequence = await nextSequence(folderPath, prefix);
-  const fileName = `${prefix ? `${prefix}-` : ''}${sequence}. ${dateTitlePrefix(now, type)} - ${sanitizeTitle(title)}.md`;
-  const notePath = path.join(folderPath, fileName);
+  let fileName = captureFileName({ prefix, sequence, now, type, title });
+  let notePath = path.join(folderPath, fileName);
   const note = await renderRawNote({
     status,
     rawType,
@@ -45,7 +45,15 @@ export async function captureRawNote({ config, type = DEFAULT_TYPE, title, body 
   assertRawNoteSafety(note, 'wiki capture note');
 
   if (!options.dryRun) {
-    await writeFile(notePath, note);
+    ({ fileName, notePath } = await writeCaptureNoteWithRetry({
+      folderPath,
+      prefix,
+      initialSequence: sequence,
+      now,
+      type,
+      title,
+      note,
+    }));
   }
 
   return {
@@ -56,6 +64,37 @@ export async function captureRawNote({ config, type = DEFAULT_TYPE, title, body 
     title,
     content: options.includeContent ? note : undefined,
   };
+}
+
+async function writeCaptureNoteWithRetry({ folderPath, prefix, initialSequence, now, type, title, note }) {
+  const width = initialSequence.length;
+  const start = Number.parseInt(initialSequence, 10);
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const sequence = String(start + attempt).padStart(width, '0');
+    const fileName = captureFileName({ prefix, sequence, now, type, title });
+    const notePath = path.join(folderPath, fileName);
+    try {
+      await writeNewFile(notePath, note);
+      return { fileName, notePath };
+    } catch (error) {
+      if (error?.code === 'EEXIST') continue;
+      throw error;
+    }
+  }
+  throw new Error('wiki capture could not allocate a unique Raw note path after 20 attempts');
+}
+
+function captureFileName({ prefix, sequence, now, type, title }) {
+  return `${prefix ? `${prefix}-` : ''}${sequence}. ${dateTitlePrefix(now, type)} - ${sanitizeTitle(title)}.md`;
+}
+
+async function writeNewFile(filePath, content) {
+  const handle = await open(filePath, 'wx');
+  try {
+    await handle.writeFile(content);
+  } finally {
+    await handle.close();
+  }
 }
 
 function parseCaptureDate(options) {

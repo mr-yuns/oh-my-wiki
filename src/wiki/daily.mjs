@@ -1,10 +1,10 @@
-import { mkdir, open, readdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, open, readdir, readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { buildWikiStatus } from './contract.mjs';
 import { frontmatterScalar, redactSensitiveText } from './redaction.mjs';
 import { renderWikiTemplate } from './template.mjs';
 import { assertRawNoteSafety } from './validation.mjs';
-import { pathExists } from '../utils/fs.js';
+import { pathExists, writeTextFileAtomic } from '../utils/fs.js';
 
 export async function createDailyReport({ config, author, team, date, body = '', options = {} }) {
   if (!author?.trim()) throw new Error('wiki daily requires --author');
@@ -340,10 +340,7 @@ async function withDailyReportLock(root, author, reportDate, callback) {
 }
 
 async function writeFileAtomic(targetPath, content) {
-  await mkdir(path.dirname(targetPath), { recursive: true });
-  const tempPath = path.join(path.dirname(targetPath), `.${path.basename(targetPath)}.${process.pid}.${Date.now()}.tmp`);
-  await writeFile(tempPath, content);
-  await rename(tempPath, targetPath);
+  await writeTextFileAtomic(targetPath, content);
 }
 
 function sleep(ms) {

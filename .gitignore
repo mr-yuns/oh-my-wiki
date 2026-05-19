@@ -1,7 +1,8 @@
 node_modules/
 npm-debug.log*
 .DS_Store
-.omx
-.omw/
-.wiki/.omw/
+/.omx
+/.omw/
+.wiki/.omw/*
+!.wiki/.omw/contract.json
 .wiki/.obsidian/workspace*

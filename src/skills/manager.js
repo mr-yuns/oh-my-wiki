@@ -1,7 +1,7 @@
-import { cp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readdir, readFile, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { pathExists, readJsonFile } from '../utils/fs.js';
+import { pathExists, readJsonFile, writeJsonFile } from '../utils/fs.js';
 
 const OWNER = 'oh-my-wiki';
 const MARKER_FILE = '.omw-managed-skill.json';
@@ -242,21 +242,14 @@ function parseSkillMetadata(content) {
 }
 
 async function writeMarker(targetPath, { platform, skill }) {
-  await writeFile(
-    path.join(targetPath, MARKER_FILE),
-    `${JSON.stringify(
-      {
-        owner: OWNER,
-        platform,
-        name: skill.name,
-        directory: skill.directory,
-        sourcePath: skill.sourcePath,
-        installedAt: new Date().toISOString(),
-      },
-      null,
-      2,
-    )}\n`,
-  );
+  await writeJsonFile(path.join(targetPath, MARKER_FILE), {
+    owner: OWNER,
+    platform,
+    name: skill.name,
+    directory: skill.directory,
+    sourcePath: skill.sourcePath,
+    installedAt: new Date().toISOString(),
+  });
 }
 
 async function readMarker(targetPath) {

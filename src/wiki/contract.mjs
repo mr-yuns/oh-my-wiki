@@ -64,12 +64,27 @@ export async function refreshWikiContract(wikiPath, options = {}) {
   if (!wikiPath) return { ok: false, refreshed: false, contractPath: '', issues: ['wikiPath is not configured'] };
   if (!(await pathExists(wikiPath))) return { ok: false, refreshed: false, contractPath, issues: [`wikiPath does not exist: ${wikiPath}`] };
   const language = normalizeWikiLanguage(options.language || options.wikiLanguage);
-  const scanned = await scanWikiContract(wikiPath, { ...options, language, writeManaged: true });
+  const scanned = await scanWikiContract(wikiPath, { ...options, language, writeManaged: !options.dryRun });
   const current = await readJsonFile(contractPath, null);
   const next = current?.language === language ? mergeScannerOwnedContract(current, scanned) : scanned;
+  const changed = !scannerContractsEquivalent(current, next);
+  if (options.dryRun) {
+    return {
+      ok: true,
+      refreshed: false,
+      changed,
+      dryRun: true,
+      contractPath,
+      changes: changed ? summarizeContractChanges(current, next) : [],
+      current,
+      next,
+      issues: [],
+    };
+  }
+  if (!changed) return { ok: true, refreshed: false, changed: false, dryRun: false, contractPath, issues: [] };
   await mkdir(path.dirname(contractPath), { recursive: true });
   await writeJsonFile(contractPath, next);
-  return { ok: true, refreshed: true, contractPath, issues: [] };
+  return { ok: true, refreshed: true, changed: true, dryRun: false, contractPath, changes: summarizeContractChanges(current, next), issues: [] };
 }
 
 export async function buildWikiStatus(config) {
@@ -218,6 +233,27 @@ function scannerContractsEquivalent(current, scanned) {
   if (current?.generatedBy !== scanned.generatedBy) return false;
   const currentComparable = { ...current, generatedAt: scanned.generatedAt };
   return JSON.stringify(currentComparable) === JSON.stringify(scanned);
+}
+
+function summarizeContractChanges(current, next) {
+  const currentFlat = flattenContractForDiff(current || {});
+  const nextFlat = flattenContractForDiff(next || {});
+  const keys = [...new Set([...Object.keys(currentFlat), ...Object.keys(nextFlat)])].sort();
+  return keys.flatMap((key) => {
+    if (!Object.hasOwn(currentFlat, key)) return [{ path: key, type: 'added', next: nextFlat[key] }];
+    if (!Object.hasOwn(nextFlat, key)) return [{ path: key, type: 'removed', previous: currentFlat[key] }];
+    if (currentFlat[key] !== nextFlat[key]) return [{ path: key, type: 'changed', previous: currentFlat[key], next: nextFlat[key] }];
+    return [];
+  });
+}
+
+function flattenContractForDiff(value, prefix = '') {
+  if (prefix === 'generatedAt') return {};
+  if (!isPlainObject(value) && !Array.isArray(value)) return prefix ? { [prefix]: value } : {};
+  if (Array.isArray(value)) {
+    return { [prefix]: JSON.stringify(value) };
+  }
+  return Object.assign({}, ...Object.entries(value).map(([key, child]) => flattenContractForDiff(child, prefix ? `${prefix}.${key}` : key)));
 }
 
 function mergeScannerOwnedContract(current, scanned) {

@@ -21,7 +21,8 @@ required schema shape without adding an external validator dependency.
 
 `omw setup --wiki <path>` creates the contract when it is missing. `omw wiki
 contract --refresh` and `omw wiki refresh --target contract` rescan the wiki and
-rewrite scanner-owned fields.
+rewrite scanner-owned fields. Add `--dry-run --json` to preview the next
+contract and a field-level change summary without writing `.omw/contract.json`.
 
 The scanner is intentionally conservative:
 
@@ -197,6 +198,7 @@ omw wiki validate
 omw wiki queue --json
 ```
 
-`omw wiki validate` applies the bundled base wiki validation rules to the
-connected wiki. It is strictest for the bundled English/Korean base layout and
-is most useful before publishing or committing base-wiki changes.
+`omw wiki validate` applies bundled strict rules to OMW base wikis and
+contract-aware safety checks to generic Markdown wikis. It is strictest for the
+bundled English/Korean base layout and is most useful before publishing or
+committing base-wiki changes.

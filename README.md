@@ -163,6 +163,10 @@ omw report-daily --date 2026-05-18
 omw validate
 ```
 
+`omw validate` is profile-aware: OMW base wikis keep the bundled strict
+frontmatter/navigation rules, while connected generic Markdown wikis are checked
+against the generated wiki contract plus portable Markdown safety checks.
+
 See [docs/demo-workflow.md](docs/demo-workflow.md) for the full copy-paste
 demo flow used by the test suite.
 
@@ -237,6 +241,8 @@ Ranking weights can be tuned with `search.ranking` in the wiki contract.
 Use `--type`, `--status`, and `--path` to narrow results by detected
 frontmatter metadata or wiki-relative paths. Non-JSON output includes the
 selected backend and fallback reason when SQLite search falls back to scan.
+Index refresh JSON includes backend, index path, and scan/change/delete counts
+when SQLite indexing is available.
 
 ## Commands
 
@@ -248,10 +254,10 @@ selected backend and fallback reason when SQLite search falls back to scan.
 | `omw paths` | Print OMW state and configured paths. |
 | `omw wiki status [--json]` | Show connected wiki and contract health. |
 | `omw wiki init [--wiki <path>] [--language en|ko]` | Wiki-scoped alias for `omw init`. |
-| `omw wiki contract --refresh` | Regenerate `.omw/contract.json` from the wiki. |
+| `omw wiki contract --refresh [--dry-run]` | Regenerate or preview `.omw/contract.json` from the wiki. |
 | `omw wiki contract --explain` | Print a concise summary of the active contract. |
 | `omw wiki contract --validate` | Validate the active contract's required schema shape. |
-| `omw wiki refresh [--target all|contract|index]` | Refresh contract and/or search index. |
+| `omw wiki refresh [--target all|contract|index] [--dry-run]` | Refresh or preview contract and/or search index work. |
 | `omw search "<query>"` | Search wiki notes. Alias for `omw wiki search`; supports `--backend`, `--type`, `--status`, `--path`, and `--sort`. |
 | `omw capture --title "<title>" --stdin` | Capture an agent-session Raw note from stdin. |
 | `omw queue` | List pending Raw notes. |
@@ -262,7 +268,7 @@ selected backend and fallback reason when SQLite search falls back to scan.
 | `omw daily --author <name> --team <team> --date YYYY-MM-DD --stdin` | Create or update a daily report Raw note. |
 | `omw report-raw-ingest [--language en|ko]` | Summarize Raw ingest states and targets. |
 | `omw report-daily [--date YYYY-MM-DD] [--author <name>] [--team <team>]` | Summarize daily report Raw notes. |
-| `omw validate [--json]` | Validate the connected wiki against the base wiki rules. |
+| `omw validate [--json]` | Validate the connected wiki with profile-aware base or contract rules. |
 | `omw codex-hooks install` | Install Codex hook entries. |
 | `omw claude-hooks install` | Install Claude Code hook entries. |
 | `omw skills install --platform codex` | Install managed Codex skills. |
@@ -286,6 +292,15 @@ omw validate
 ## Configuration
 
 OMW stores runtime state under `~/.omw` by default.
+Runtime JSON/TOML updates for config, contracts, hooks, hook events, and managed
+skill markers are written through a same-directory temporary file and rename so
+partial writes do not replace the previous valid state.
+If local config or hook JSON is already corrupt, `omw doctor --json` reports the
+broken file as an issue or warning, and `omw setup` / hook install commands can
+rewrite the managed runtime files.
+Generated wiki-local writes such as captures, daily reports, ingest drafts,
+promoted-note overwrites, Raw ingest-state updates, and fallback templates use
+the same safe-write boundary where replacement is expected.
 
 Important environment variables:
 
@@ -302,6 +317,11 @@ Hook auto capture is disabled by default. Enable it explicitly:
 ```bash
 omw setup --wiki /path/to/wiki --wiki-auto-capture
 ```
+
+When auto capture is enabled, Stop hooks store only a short redacted transcript
+excerpt. They do not store the full transcript or transcript path, and transcript
+read failures are recorded as best-effort metadata without blocking the agent
+runtime.
 
 Disable hooks during setup:
 
@@ -345,9 +365,10 @@ omw skills uninstall --platform codex --name wiki-search
 
 OMW is local-first, but it still handles sensitive session material. The runtime
 includes redaction for common secret-like strings, JWTs, bearer tokens, GitHub
-tokens, private keys, signed URL query secrets, local paths, and session IDs
-when capturing Raw notes. Redaction is a safety net, not a substitute for
-review.
+tokens, OpenAI/Anthropic-style API keys, npm tokens, Slack tokens and webhooks,
+AWS access keys, cookie headers, environment-style secret assignments, private
+keys, signed URL query secrets, local paths, and session IDs when capturing Raw
+notes. Redaction is a safety net, not a substitute for review.
 
 Recommended practice:
 

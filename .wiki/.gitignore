@@ -1,4 +1,5 @@
 .obsidian/workspace.json
-.omw/
+.omw/*
+!.omw/contract.json
 .omx/
 .DS_Store

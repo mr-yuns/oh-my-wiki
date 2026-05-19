@@ -149,6 +149,56 @@ test('init connects non-empty markdown wikis without seeding base content', asyn
   assert.equal(await readFile(path.join(wiki, 'notes/alpha.md'), 'utf8'), '# Alpha\n\nExisting note.\n');
 });
 
+test('wiki validate uses contract-aware checks for generic markdown wikis', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'omw-validate-generic-'));
+  const home = path.join(root, 'state');
+  const wiki = path.join(root, 'wiki');
+  const env = { ...process.env, OH_MY_WIKI_HOME: home };
+  await mkdir(path.join(wiki, 'notes'), { recursive: true });
+  await writeFile(path.join(wiki, 'notes/alpha.md'), '# Alpha\n\nExisting note without base-wiki frontmatter.\n');
+
+  await execFileAsync(process.execPath, [
+    cliPath,
+    'init',
+    '--wiki',
+    wiki,
+    '--json',
+  ], { env });
+
+  const plain = await execFileAsync(process.execPath, [cliPath, 'wiki', 'validate'], { env });
+  assert.match(plain.stdout, /OK: wiki contract validation passed/);
+
+  const ok = JSON.parse((await execFileAsync(process.execPath, [cliPath, 'wiki', 'validate', '--json'], { env })).stdout);
+  assert.equal(ok.ok, true);
+  assert.equal(ok.mode, 'contract');
+  assert.equal(ok.profile, 'generic-markdown');
+  assert.deepEqual(ok.failures, []);
+
+  const secretPath = path.join(wiki, 'notes/secret.md');
+  await writeFile(secretPath, `# Secret\n\nOPENAI_API_KEY=${['sk', 'proj', 'abcdefghijklmnopqrstuvwxyz'].join('-')}\n`);
+  await assert.rejects(
+    execFileAsync(process.execPath, [cliPath, 'wiki', 'validate', '--json'], { env }),
+    (error) => {
+      const report = JSON.parse(error.stdout);
+      assert.equal(report.ok, false);
+      assert(report.failures.some((failure) => failure.includes('environment-style secrets must not be stored')));
+      return true;
+    },
+  );
+  await rm(secretPath, { force: true });
+
+  await writeFile(path.join(wiki, 'notes/broken.md'), '---\ntitle: Broken\n# Missing closing fence\n');
+  await assert.rejects(
+    execFileAsync(process.execPath, [cliPath, 'wiki', 'validate', '--json'], { env }),
+    (error) => {
+      const report = JSON.parse(error.stdout);
+      assert.equal(report.ok, false);
+      assert(report.failures.some((failure) => failure.includes('notes/broken.md: frontmatter closing marker missing')));
+      return true;
+    },
+  );
+});
+
 test('init does not overwrite hidden-only wiki directories', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'omw-init-hidden-'));
   const home = path.join(root, 'state');
@@ -258,6 +308,27 @@ test('wiki capture and queue work for English and Korean base wikis', async () =
     assert.match(report.items[0].relativePath, new RegExp(`^${language}/01\\. Inbox/01-01\\. Raw/`));
     assert.equal(report.items[0].state, language === 'en' ? 'captured' : '수집됨');
   }
+});
+
+test('wiki capture allocates unique raw note paths under concurrent writes', async () => {
+  const { env } = await setupIsolatedWiki('omw-capture-concurrent-', 'en');
+  const captures = await Promise.all(Array.from({ length: 6 }, (_, index) => execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'capture',
+    '--type',
+    'agent_session',
+    '--title',
+    'Concurrent session',
+    '--body',
+    `body ${index}`,
+    '--json',
+  ], { env })));
+  const paths = captures.map((result) => JSON.parse(result.stdout).path);
+  assert.equal(new Set(paths).size, captures.length);
+
+  const queue = JSON.parse((await execFileAsync(process.execPath, [cliPath, 'wiki', 'queue', '--json'], { env })).stdout);
+  assert.equal(queue.total, captures.length);
 });
 
 test('wiki daily writes localized raw reports for English and Korean base wikis', async () => {
@@ -463,6 +534,27 @@ test('wiki search indexes only the active language notes and excludes templates'
   assert.match(textSearch.stdout, /- backend: scan/);
   assert.match(textSearch.stdout, /- filters: type=Map/);
 
+  const indexRefresh = JSON.parse((await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'refresh',
+    '--target',
+    'index',
+    '--json',
+  ], { env: english.env })).stdout);
+  assert.equal(indexRefresh.ok, true);
+  if (indexRefresh.index.backend === 'sqlite') {
+    assert.equal(indexRefresh.index.created, false);
+    assert.equal(indexRefresh.index.indexedFiles > 0, true);
+    assert.equal(indexRefresh.index.scannedFiles, indexRefresh.index.indexedFiles);
+    assert.equal(indexRefresh.index.deletedFiles, 0);
+    assert.equal(indexRefresh.index.changedFiles >= 0, true);
+    assert.equal(indexRefresh.index.unchangedFiles >= 0, true);
+  } else {
+    assert.equal(indexRefresh.index.backend, 'scan');
+    assert.equal(indexRefresh.index.skipped, true);
+  }
+
   const korean = await setupIsolatedWiki('omw-search-ko-', 'ko');
   const koreanResult = await execFileAsync(process.execPath, [cliPath, 'wiki', 'search', '지식 지도', '--json', '--limit', '20'], {
     env: korean.env,
@@ -552,6 +644,84 @@ test('wiki contract explain summarizes contract shape and schema is valid JSON',
   assert.equal(schema.title, 'Oh My Wiki Contract');
   assert(schema.required.includes('raw'));
   assert(schema.properties.search.required.includes('excludeDirs'));
+});
+
+test('wiki contract refresh dry-run previews scanner changes without writing', async () => {
+  const { wiki, env } = await setupIsolatedWiki('omw-contract-dry-run-', 'en');
+  const contractPath = path.join(wiki, '.omw/contract.json');
+  const stale = JSON.parse(await readFile(contractPath, 'utf8'));
+  stale.search.root = 'stale';
+  await writeFile(contractPath, `${JSON.stringify(stale, null, 2)}\n`);
+  const staleText = await readFile(contractPath, 'utf8');
+
+  const preview = JSON.parse((await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'contract',
+    '--refresh',
+    '--dry-run',
+    '--json',
+  ], { env })).stdout);
+  assert.equal(preview.refresh.dryRun, true);
+  assert.equal(preview.refresh.refreshed, false);
+  assert.equal(preview.refresh.changed, true);
+  assert(preview.refresh.changes.some((change) => change.path === 'search.root' && change.previous === 'stale' && change.next === 'en'));
+  assert.equal(await readFile(contractPath, 'utf8'), staleText);
+
+  const refresh = JSON.parse((await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'refresh',
+    '--target',
+    'all',
+    '--dry-run',
+    '--json',
+  ], { env })).stdout);
+  assert.equal(refresh.dryRun, true);
+  assert.equal(refresh.refreshed.contract, false);
+  assert.equal(refresh.refreshed.index, false);
+  assert.equal(refresh.contract.changed, true);
+  assert.equal(refresh.index.dryRun, true);
+  assert.equal(await readFile(contractPath, 'utf8'), staleText);
+});
+
+test('wiki contract refresh dry-run does not create managed fallback assets', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'omw-contract-dry-run-assets-'));
+  const home = path.join(root, 'state');
+  const wiki = path.join(root, 'wiki');
+  const env = { ...process.env, OH_MY_WIKI_HOME: home };
+  await mkdir(path.join(wiki, 'notes'), { recursive: true });
+  await writeFile(path.join(wiki, 'notes/alpha.md'), '# Alpha\n\nExisting note.\n');
+  await execFileAsync(process.execPath, [cliPath, 'init', '--wiki', wiki, '--json'], { env });
+  await rm(path.join(wiki, '.omw/raw'), { recursive: true, force: true });
+  await rm(path.join(wiki, '.omw/templates'), { recursive: true, force: true });
+
+  const preview = JSON.parse((await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'contract',
+    '--refresh',
+    '--dry-run',
+    '--json',
+  ], { env })).stdout);
+  assert.equal(preview.refresh.dryRun, true);
+  assert.equal(preview.ok, true);
+  assert(preview.issues.some((issue) => issue.includes('wiki raw root does not exist')));
+  await assert.rejects(readdir(path.join(wiki, '.omw/raw')));
+  await assert.rejects(readdir(path.join(wiki, '.omw/templates')));
+
+  const refresh = JSON.parse((await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'refresh',
+    '--target',
+    'all',
+    '--dry-run',
+    '--json',
+  ], { env })).stdout);
+  assert.equal(refresh.ok, true);
+  assert.equal(refresh.dryRun, true);
+  assert(refresh.issues.some((issue) => issue.includes('wiki raw root does not exist')));
 });
 
 test('scan search matches separated query terms and preserves raw exclusions', async () => {

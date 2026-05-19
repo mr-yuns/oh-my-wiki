@@ -10,14 +10,22 @@ export async function readConfig() {
 
 export async function readConfigWithSource() {
   const configuredConfigPath = configPath();
-  const configuredConfig = await readJsonFile(configuredConfigPath, null);
-  if (configuredConfig) {
-    return { config: normalizeConfigPaths(configuredConfig, configuredConfigPath), configPath: configuredConfigPath };
+  const configured = await readConfigCandidate(configuredConfigPath);
+  if (configured.exists) {
+    return {
+      config: normalizeConfigPaths(configured.config, configuredConfigPath),
+      configPath: configuredConfigPath,
+      issues: configured.issues,
+    };
   }
 
   const dirs = await ensureStateDirs();
-  const fallbackConfig = await readJsonFile(dirs.configPath, null);
-  return { config: normalizeConfigPaths(fallbackConfig, dirs.configPath), configPath: dirs.configPath };
+  const fallback = await readConfigCandidate(dirs.configPath);
+  return {
+    config: normalizeConfigPaths(fallback.config, dirs.configPath),
+    configPath: dirs.configPath,
+    issues: fallback.issues,
+  };
 }
 
 export async function writeConfig(input) {
@@ -80,5 +88,20 @@ async function validateRequiredDirectory(issues, name, configuredPath) {
   }
   if (!(await pathExists(configuredPath))) {
     issues.push(`${name} does not exist: ${configuredPath}`);
+  }
+}
+
+async function readConfigCandidate(filePath) {
+  if (!(await pathExists(filePath))) {
+    return { exists: false, config: null, issues: [] };
+  }
+  try {
+    return { exists: true, config: await readJsonFile(filePath, null), issues: [] };
+  } catch (error) {
+    return {
+      exists: true,
+      config: null,
+      issues: [`OMW config is not valid JSON (${filePath}): ${error instanceof Error ? error.message : String(error)}`],
+    };
   }
 }

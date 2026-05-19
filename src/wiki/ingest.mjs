@@ -1,7 +1,7 @@
-import { lstat, mkdir, open, readdir, readFile, realpath, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, open, readdir, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
 import { buildWikiStatus, loadWikiRuleSummaries } from './contract.mjs';
-import { pathExists } from '../utils/fs.js';
+import { pathExists, writeTextFileAtomic } from '../utils/fs.js';
 
 const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx']);
 const DRAFTS_RELATIVE_ROOT = path.join('.omw', 'ingest-drafts');
@@ -187,7 +187,7 @@ async function writeDraftFile({ draftPath, content, overwrite, relativePath }) {
   if (draftStat?.isSymbolicLink() || (draftStat && !draftStat.isFile())) {
     throw new Error(`Ingest draft overwrite requires a regular file: ${relativePath}`);
   }
-  await writeFile(draftPath, content);
+  await writeTextFileAtomic(draftPath, content);
 }
 
 function renderIngestDraft({ rawRelativePath, title, excerpt, rules }) {
@@ -424,14 +424,14 @@ async function writePromotionFile({ targetPath, content, overwrite, relativePath
   if (targetStat?.isSymbolicLink() || (targetStat && !targetStat.isFile())) {
     throw new Error(`Promoted note overwrite requires a regular file: ${relativePath}`);
   }
-  await writeFile(targetPath, content);
+  await writeTextFileAtomic(targetPath, content);
 }
 
 async function updateRawIngestState(rawPath, state) {
   const text = await readFile(rawPath, 'utf8');
   const next = replaceFrontmatterState(text, state);
   if (next === text) return false;
-  await writeFile(rawPath, next);
+  await writeTextFileAtomic(rawPath, next);
   return true;
 }
 

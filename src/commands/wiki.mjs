@@ -87,16 +87,19 @@ async function wikiValidate({ config, options }) {
     return { exitCode: result.ok ? 0 : 1, output: `${JSON.stringify(result, null, 2)}\n` };
   }
   if (result.ok) {
-    return { exitCode: 0, output: `OK: base wiki validation passed\n` };
+    const label = result.mode === 'base-wiki' ? 'base wiki' : 'wiki contract';
+    return { exitCode: 0, output: `OK: ${label} validation passed\n` };
   }
-  return { exitCode: 1, output: `base wiki validation failed:\n- ${result.failures.join('\n- ')}\n` };
+  const label = result.mode === 'base-wiki' ? 'base wiki' : 'wiki contract';
+  return { exitCode: 1, output: `${label} validation failed:\n- ${result.failures.join('\n- ')}\n` };
 }
 
 async function wikiRefresh({ config, options }) {
   const target = options.target || options.mode || options._?.[0] || 'all';
   if (!['all', 'contract', 'index'].includes(target)) {
-    throw new Error('Usage: omw wiki refresh [--target all|contract|index] [--json]');
+    throw new Error('Usage: omw wiki refresh [--target all|contract|index] [--dry-run] [--json]');
   }
+  const dryRun = Boolean(options['dry-run']);
 
   const refreshed = {
     contract: false,
@@ -107,22 +110,26 @@ async function wikiRefresh({ config, options }) {
   let indexResult = null;
 
   if (target === 'all' || target === 'contract') {
-    contractResult = await refreshWikiContract(config?.wikiPath || '', { language: resolveCommandLanguage(config, options) });
+    contractResult = await refreshWikiContract(config?.wikiPath || '', { language: resolveCommandLanguage(config, options), dryRun });
     refreshed.contract = Boolean(contractResult.refreshed);
     issues.push(...(contractResult.issues || []));
   }
 
   if (target === 'all' || target === 'index') {
-    indexResult = await ensureWikiSearchIndex({ config });
-    refreshed.index = Boolean(indexResult.ok);
+    indexResult = dryRun ? { ok: true, dryRun: true, refreshed: false, indexPath: null, issues: [] } : await ensureWikiSearchIndex({ config });
+    refreshed.index = Boolean(indexResult.ok && !dryRun);
     issues.push(...(indexResult.issues || []));
   }
 
   const status = await buildWikiStatus(config);
   issues.push(...(status.issues || []));
+  const ok = dryRun
+    ? [contractResult, indexResult].filter(Boolean).every((item) => item.ok)
+    : issues.length === 0;
   const result = {
-    ok: issues.length === 0,
+    ok,
     target,
+    dryRun,
     refreshed,
     contract: contractResult,
     index: indexResult,
@@ -135,8 +142,10 @@ async function wikiRefresh({ config, options }) {
   }
 
   const lines = ['OMW Wiki refresh', `- target: ${target}`];
+  if (dryRun) lines.push('- dry run: yes');
   lines.push(`- contract: ${refreshed.contract ? 'refreshed' : 'skipped'}`);
-  lines.push(`- index: ${refreshed.index ? `refreshed (${indexResult.indexPath})` : 'skipped'}`);
+  if (contractResult?.dryRun) lines.push(`- contract changes: ${contractResult.changes.length}`);
+  lines.push(`- index: ${refreshed.index && !dryRun ? `refreshed (${indexResult.indexPath})` : 'skipped'}`);
   if (result.issues.length > 0) {
     lines.push('', 'Issues:');
     for (const issue of result.issues) lines.push(`- ${issue}`);
@@ -147,13 +156,14 @@ async function wikiRefresh({ config, options }) {
 async function wikiContract({ config, options }) {
   let refreshResult = null;
   if (options.refresh) {
-    refreshResult = await refreshWikiContract(config?.wikiPath || '', { language: resolveCommandLanguage(config, options) });
+    refreshResult = await refreshWikiContract(config?.wikiPath || '', { language: resolveCommandLanguage(config, options), dryRun: Boolean(options['dry-run']) });
     if (!refreshResult.ok) {
       const output = options.json ? `${JSON.stringify(refreshResult, null, 2)}\n` : `Wiki contract refresh failed:\n- ${refreshResult.issues.join('\n- ')}\n`;
       return { exitCode: 1, output };
     }
   }
   const status = await buildWikiStatus(config);
+  const ok = refreshResult?.dryRun ? refreshResult.ok : status.ok;
   if (options.validate) {
     const validation = status.contractValidation || { ok: false, issues: ['wiki contract is not loaded'] };
     const result = {
@@ -177,10 +187,14 @@ async function wikiContract({ config, options }) {
     return { exitCode: status.ok ? 0 : 1, output: `${renderContractExplanation(explanation)}\n` };
   }
   if (options.json) {
-    return { exitCode: status.ok ? 0 : 1, output: `${JSON.stringify({ ...status, refreshed: Boolean(refreshResult?.refreshed) }, null, 2)}\n` };
+    return { exitCode: ok ? 0 : 1, output: `${JSON.stringify({ ...status, ok, refreshed: Boolean(refreshResult?.refreshed), refresh: refreshResult }, null, 2)}\n` };
   }
   const lines = ['OMW Wiki contract'];
   if (refreshResult?.refreshed) lines.push('- refreshed: yes');
+  if (refreshResult?.dryRun) {
+    lines.push('- dry run: yes');
+    lines.push(`- changes: ${refreshResult.changes.length}`);
+  }
   lines.push(`- path: ${status.contractExists ? status.contractPath : '(missing)'}`);
   lines.push(`- valid: ${status.ok ? 'yes' : 'no'}`);
   lines.push(`- rules: ${status.rules?.length || 0}`);
@@ -189,7 +203,7 @@ async function wikiContract({ config, options }) {
     lines.push('', 'Issues:');
     for (const issue of status.issues) lines.push(`- ${issue}`);
   }
-  return { exitCode: status.ok ? 0 : 1, output: `${lines.join('\n')}\n` };
+  return { exitCode: ok ? 0 : 1, output: `${lines.join('\n')}\n` };
 }
 
 function explainWikiContract(status) {
