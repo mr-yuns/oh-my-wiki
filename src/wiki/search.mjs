@@ -2,7 +2,7 @@ import { buildWikiStatus } from './contract.mjs';
 import { scanSearchBackend } from './search/scan.mjs';
 import { normalizeSearchRanking } from './search/shared.mjs';
 import { ensureSqliteSearchIndex, sqliteSearchBackend } from './search/sqlite.mjs';
-import { assertSafeExistingDirectory } from './safety.mjs';
+import { assertSafeExistingDirectory, isWikiSafetyError } from './safety.mjs';
 
 const SEARCH_BACKENDS = new Map([
   [scanSearchBackend.name, scanSearchBackend],
@@ -34,6 +34,7 @@ export async function searchWiki({ config, query, limit = 20, backend = 'auto', 
       refreshIndex,
     });
   } catch (error) {
+    if (isWikiSafetyError(error)) throw error;
     if (backend !== 'auto' || selectedBackend.name !== sqliteSearchBackend.name) throw error;
     const fallbackResult = await scanSearchBackend.search({
       wikiPath: status.wikiPath,
@@ -84,6 +85,15 @@ export async function ensureWikiSearchIndex({ config }) {
       issues: [],
     };
   } catch (error) {
+    if (isWikiSafetyError(error)) {
+      return {
+        ok: false,
+        indexPath: '',
+        created: false,
+        backend: 'sqlite',
+        issues: [error instanceof Error ? error.message : String(error)],
+      };
+    }
     return {
       ok: true,
       indexPath: '',

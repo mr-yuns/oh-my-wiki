@@ -73,6 +73,10 @@ async function snapshotUserMarkdown(root, relativeDir = '') {
   return snapshot;
 }
 
+async function sqliteAvailable() {
+  return import('node:sqlite').then(() => true, () => false);
+}
+
 test('setup uses the repository base wiki by default', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'omw-setup-'));
   const home = path.join(root, 'state');
@@ -1414,6 +1418,40 @@ test('sqlite search refuses symlinked index files before opening the database', 
       const text = `${error.stderr || ''}\n${error.message || ''}`;
       if (/sqlite search backend requires node:sqlite support|Wiki search backend is not available: sqlite/.test(text)) return true;
       return /SQLite index must be a real file/.test(text);
+    },
+  );
+});
+
+test('auto search surfaces symlinked sqlite index safety errors instead of falling back', async () => {
+  if (!(await sqliteAvailable())) return;
+  const { root, wiki, env } = await setupIsolatedWiki('omw-search-auto-sqlite-symlink-', 'en');
+  const external = path.join(root, 'external-auto-index.sqlite');
+  await writeFile(external, '');
+  await symlink(external, path.join(wiki, '.omw/index.sqlite'));
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [cliPath, 'wiki', 'search', 'Knowledge Map', '--json'], { env }),
+    (error) => {
+      const text = `${error.stderr || ''}\n${error.message || ''}`;
+      return /SQLite index must be a real file/.test(text);
+    },
+  );
+});
+
+test('wiki refresh index surfaces symlinked sqlite index safety errors', async () => {
+  if (!(await sqliteAvailable())) return;
+  const { root, wiki, env } = await setupIsolatedWiki('omw-refresh-sqlite-symlink-', 'en');
+  const external = path.join(root, 'external-refresh-index.sqlite');
+  await writeFile(external, '');
+  await symlink(external, path.join(wiki, '.omw/index.sqlite'));
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [cliPath, 'wiki', 'refresh', '--target', 'index', '--json'], { env }),
+    (error) => {
+      const report = JSON.parse(error.stdout);
+      assert.equal(report.ok, false);
+      assert(report.issues.some((issue) => /SQLite index must be a real file/.test(issue)));
+      return true;
     },
   );
 });
