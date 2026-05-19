@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.4
+
+- Keep the tracked base wiki content-only by moving report and validation logic
+  into `src/wiki/base-tools.mjs`.
+- Stop packaging a pre-generated `.wiki/.omw/contract.json`; connected wikis
+  still receive their local `.omw/contract.json` during setup or init.
+- Remove executable scripts from the bundled `.wiki` source tree so personal
+  wikis are not seeded with OMW runtime logic.
+
 ## 0.4.3
 
 - Prefer explicit Raw operation guide matches when regenerating wiki contracts

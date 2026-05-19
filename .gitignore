@@ -4,5 +4,4 @@ npm-debug.log*
 /.omx
 /.omw/
 .wiki/.omw/*
-!.wiki/.omw/contract.json
 .wiki/.obsidian/workspace*

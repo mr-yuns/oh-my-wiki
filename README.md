@@ -206,8 +206,12 @@ base with English and Korean layouts:
 .wiki/
   en/
   ko/
-  scripts/
 ```
+
+The tracked base wiki contains only reusable Markdown content, templates, and
+editor defaults. OMW runtime files such as `.omw/contract.json`, search indexes,
+ingest drafts, and report/validation logic are generated or provided by the CLI
+outside the repository base wiki.
 
 You can use it directly, fork it, or ignore it and connect another Markdown
 folder with `omw setup --wiki <path>`.
@@ -394,7 +398,7 @@ npm run check
 Useful commands while working locally:
 
 ```bash
-node src/cli/omw.js setup --wiki .wiki --no-hooks
+node src/cli/omw.js setup --no-hooks
 node src/cli/omw.js wiki status
 node src/cli/omw.js wiki refresh
 node src/cli/omw.js search "knowledge"

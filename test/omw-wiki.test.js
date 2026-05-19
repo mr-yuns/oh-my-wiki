@@ -80,6 +80,7 @@ test('setup uses the repository base wiki by default', async () => {
   const report = JSON.parse(doctor.stdout);
   assert.equal(report.ok, true);
   assert.match(report.config.wikiPath, /\.wiki$/);
+  assert.equal(await readFile(path.resolve('.wiki/.omw/contract.json'), 'utf8').then((text) => text.includes('omw-contract-scanner')), true);
 });
 
 test('init creates an idempotent base wiki without overwriting existing notes', async () => {
@@ -103,7 +104,8 @@ test('init creates an idempotent base wiki without overwriting existing notes', 
   assert.match(created.contractPath, /\.omw\/contract\.json$/);
   assert.equal(await readFile(path.join(wiki, 'README.md'), 'utf8').then((text) => text.includes('OMW base wiki')), true);
   assert.equal(await readFile(path.join(wiki, 'AGENTS.md'), 'utf8').then((text) => text.includes('public base wiki')), true);
-  assert.equal(await readFile(path.join(wiki, 'scripts/validate-wiki'), 'utf8').then((text) => text.startsWith('#!/usr/bin/env node')), true);
+  await assert.rejects(readFile(path.join(wiki, 'scripts/validate-wiki'), 'utf8'), { code: 'ENOENT' });
+  assert.equal(await readFile(path.join(wiki, '.omw/contract.json'), 'utf8').then((text) => text.includes('omw-contract-scanner')), true);
 
   const markerPath = path.join(wiki, 'en/03. Permanent Notes/03-01. User Note.md');
   await writeFile(markerPath, '# User Note\n\nDo not overwrite.\n');
@@ -395,10 +397,11 @@ test('wiki daily updates English reports using English sections', async () => {
   assert.match(note, /Daily reports need localized sections/);
   assert.doesNotMatch(note, /## 막힌 점 \/ 지원 필요/);
 
-  await execFileAsync(path.join(wiki, 'scripts/validate-wiki'), []);
+  const validation = await execFileAsync(process.execPath, [cliPath, 'wiki', 'validate'], { env });
+  assert.match(validation.stdout, /OK: base wiki validation passed/);
 });
 
-test('base wiki report scripts accept spaced language options and localize headings', async () => {
+test('base wiki reports accept spaced language options and localize headings', async () => {
   const english = await setupIsolatedWiki('omw-scripts-en-', 'en');
   await execFileAsync(process.execPath, [
     cliPath,
@@ -425,12 +428,14 @@ test('base wiki report scripts accept spaced language options and localize headi
     '- Script daily body',
   ], { env: english.env });
 
-  const englishRaw = await execFileAsync(path.join(english.wiki, 'scripts/report-raw-ingest'), ['--language', 'en']);
+  await assert.rejects(readFile(path.join(english.wiki, 'scripts/report-raw-ingest'), 'utf8'), { code: 'ENOENT' });
+
+  const englishRaw = await execFileAsync(process.execPath, [cliPath, 'wiki', 'report-raw-ingest', '--language', 'en'], { env: english.env });
   assert.match(englishRaw.stdout, /# Raw Ingest Report/);
   assert.match(englishRaw.stdout, /\| State \| Target \| Processed at \| Note \|/);
   assert.match(englishRaw.stdout, /captured: 2/);
 
-  const englishDaily = await execFileAsync(path.join(english.wiki, 'scripts/report-daily'), ['--language', 'en']);
+  const englishDaily = await execFileAsync(process.execPath, [cliPath, 'wiki', 'report-daily', '--language', 'en'], { env: english.env });
   assert.match(englishDaily.stdout, /# Daily Report Summary/);
   assert.match(englishDaily.stdout, /\| Report date \| Author \| Team \| Ingest state \| Related projects \| Note \|/);
 
@@ -446,7 +451,7 @@ test('base wiki report scripts accept spaced language options and localize headi
   assert.match(cliValidate.stdout, /OK: base wiki validation passed/);
 
   const korean = await setupIsolatedWiki('omw-scripts-ko-', 'ko');
-  const koreanDaily = await execFileAsync(path.join(korean.wiki, 'scripts/report-daily'), ['--language=ko']);
+  const koreanDaily = await execFileAsync(process.execPath, [cliPath, 'wiki', 'report-daily', '--language=ko'], { env: korean.env });
   assert.match(koreanDaily.stdout, /# 일간 리포트 요약/);
   assert.match(koreanDaily.stdout, /\| 보고일 \| 작성자 \| 팀 \| ingest상태 \| 관련프로젝트 \| 노트 \|/);
 });
@@ -473,7 +478,7 @@ test('wiki report parser handles inline values, YAML comments, and flow arrays',
     .replace('ingestState: captured', 'ingestState: captured # reviewed');
   await writeFile(report.path, withYamlVariants);
 
-  const summary = await execFileAsync(path.join(wiki, 'scripts/report-daily'), ['--language=en', '--author=Alex=Lead']);
+  const summary = await execFileAsync(process.execPath, [cliPath, 'wiki', 'report-daily', '--language=en', '--author=Alex=Lead'], { env });
   assert.match(summary.stdout, /\| Alex=Lead \| Docs \| 1 \|/);
   assert.match(summary.stdout, /Alpha, Beta, Gamma/);
 

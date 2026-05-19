@@ -2,7 +2,7 @@ import {
   createDailyReportSummary as createBaseDailyReportSummary,
   createRawIngestReport as createBaseRawIngestReport,
   validateWiki as validateBaseWiki,
-} from '../../.wiki/scripts/_wiki-tools.mjs';
+} from './base-tools.mjs';
 import { readdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { buildWikiStatus } from './contract.mjs';

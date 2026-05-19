@@ -41,6 +41,7 @@ export async function initializeWiki({ config, options = {} }) {
 }
 
 async function seedBaseWikiIfEmpty({ wikiPath, language }) {
+  await mkdir(wikiPath, { recursive: true });
   const entries = await readdir(wikiPath, { withFileTypes: true }).catch(() => []);
   if (entries.length > 0) return false;
 
