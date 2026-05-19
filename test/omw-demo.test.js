@@ -105,4 +105,21 @@ test('documented demo workflow runs against a disposable base wiki', async () =>
 
   const validate = await execFileAsync(process.execPath, [cliPath, 'validate'], { env });
   assert.match(validate.stdout, /OK: base wiki validation passed/);
+
+  const promote = await execFileAsync(process.execPath, [
+    cliPath,
+    'ingest',
+    queued.items[0].relativePath,
+    '--promote',
+    '--target',
+    'en/03. Permanent Notes/03-demo-session.md',
+    '--json',
+  ], { env });
+  const promoted = JSON.parse(promote.stdout);
+  assert.equal(promoted.promotion.writePerformed, true);
+  assert.equal(promoted.promotion.relativePath, 'en/03. Permanent Notes/03-demo-session.md');
+  assert.equal(promoted.promotion.template, 'base-wiki-permanent-note');
+
+  const validateAfterPromote = await execFileAsync(process.execPath, [cliPath, 'validate'], { env });
+  assert.match(validateAfterPromote.stdout, /OK: base wiki validation passed/);
 });

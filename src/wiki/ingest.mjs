@@ -108,23 +108,26 @@ async function maybeWriteIngestDraft({ status, rawRelativePath, title, excerpt, 
 }
 
 async function maybePromoteRawNote({ status, rawPath, rawRelativePath, title, excerpt, rules, options }) {
-  if (!options.promote) return { writePerformed: false, path: null, relativePath: null, rawStateUpdated: false };
+  if (!options.promote) return { writePerformed: false, path: null, relativePath: null, rawStateUpdated: false, template: null };
   const targetRef = String(options.target || '').trim();
   if (!targetRef) throw new Error('wiki ingest --promote requires --target <relative-note-path>');
   const targetPath = await resolvePromotionTarget(status, targetRef);
-  const content = renderPromotedNote({ rawRelativePath, title, excerpt, rules });
+  const relativePath = path.relative(status.wikiPath, targetPath);
+  const template = promotionTemplateForTarget(relativePath);
+  const content = renderPromotedNote({ rawRelativePath, title, excerpt, rules, template });
   await writePromotionFile({
     targetPath,
     content,
     overwrite: Boolean(options.overwritePromote || options['overwrite-promote']),
-    relativePath: path.relative(status.wikiPath, targetPath),
+    relativePath,
   });
   const rawStateUpdated = await updateRawIngestState(rawPath, promotedState(status));
   return {
     writePerformed: true,
     path: targetPath,
-    relativePath: path.relative(status.wikiPath, targetPath),
+    relativePath,
     rawStateUpdated,
+    template: template.name,
   };
 }
 
@@ -220,11 +223,10 @@ function renderIngestDraft({ rawRelativePath, title, excerpt, rules }) {
   return `${lines.join('\n')}`;
 }
 
-function renderPromotedNote({ rawRelativePath, title, excerpt, rules }) {
+function renderPromotedNote({ rawRelativePath, title, excerpt, rules, template }) {
   const lines = [
     '---',
-    'type: Note',
-    'status: draft',
+    ...renderFrontmatterLines(template.frontmatter),
     `sourceRaw: ${JSON.stringify(rawRelativePath)}`,
     '---',
     '',
@@ -248,6 +250,81 @@ function renderPromotedNote({ rawRelativePath, title, excerpt, rules }) {
   }
   lines.push('');
   return lines.join('\n');
+}
+
+function renderFrontmatterLines(frontmatter) {
+  return Object.entries(frontmatter).map(([key, value]) => `${key}: ${value}`);
+}
+
+function promotionTemplateForTarget(relativePath) {
+  const normalized = normalizePath(relativePath);
+  const date = new Date().toISOString().slice(0, 10);
+  const base = {
+    status: 'draft',
+    documentationLens: 'promoted-note',
+    knowledgeMaturity: 'draft',
+    created: date,
+    updated: date,
+    captureChannel: 'ingest',
+    area: '[]',
+    tags: '[omw, ingest]',
+  };
+  const nav = {
+    topicScope: 'local',
+    impactScope: 'note',
+    verificationNeed: 'required',
+    recommendedSearchDepth: 'standard',
+    parentHub: '[[06-02-01. Knowledge Map]]',
+  };
+  const baseWikiType = baseWikiTypeForPath(normalized);
+  if (!baseWikiType) {
+    return {
+      name: 'generic-draft',
+      frontmatter: {
+        type: 'Note',
+        status: 'draft',
+      },
+    };
+  }
+  return {
+    name: `base-wiki-${baseWikiType.toLowerCase().replace(/\s+/g, '-')}`,
+    frontmatter: {
+      type: baseWikiType,
+      ...base,
+      ...(requiresNavigationFields(normalized) ? nav : {}),
+    },
+  };
+}
+
+function baseWikiTypeForPath(normalizedPath) {
+  const top = baseWikiTopFolder(normalizedPath);
+  if (top === '02. Literature Notes') return 'Literature Note';
+  if (top === '03. Permanent Notes') return 'Permanent Note';
+  if (top === '04. Projects') return 'Project Note';
+  if (top === '05. Areas') return 'Area Note';
+  if (top === '06. Resources') return resourceTypeForPath(normalizedPath);
+  if (top === '07. Archive') return 'Archive Note';
+  return null;
+}
+
+function baseWikiTopFolder(normalizedPath) {
+  const withoutLanguage = normalizedPath.replace(/^(en|ko)\//, '');
+  return withoutLanguage.split('/')[0] || '';
+}
+
+function resourceTypeForPath(normalizedPath) {
+  if (normalizedPath.includes('/06-02. Maps/')) return 'Map';
+  if (normalizedPath.includes('/06-03. Catalogs/')) return 'Catalog';
+  return 'Operating Guide';
+}
+
+function requiresNavigationFields(normalizedPath) {
+  const top = baseWikiTopFolder(normalizedPath);
+  return ['03. Permanent Notes', '05. Areas', '06. Resources'].includes(top);
+}
+
+function normalizePath(value) {
+  return String(value || '').replace(/\\/g, '/');
 }
 
 function safeFileName(value) {

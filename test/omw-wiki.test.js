@@ -420,10 +420,48 @@ test('wiki search indexes only the active language notes and excludes templates'
   assert(englishSearch.results.length > 0);
   assert(englishSearch.results.every((item) => item.relativePath.startsWith('en/')));
   assert(englishSearch.results.every((item) => !item.relativePath.includes('/08. Templates/')));
+  assert(['sqlite', 'scan'].includes(englishSearch.backend));
+  assert.deepEqual(englishSearch.filters, { type: '', status: '', path: '' });
   if (englishSearch.results[0].rankSignals) {
     assert.equal(englishSearch.results[0].rankSignals.paraSection, '06. Resources');
     assert.equal(englishSearch.results[0].rankSignals.maturity, 'stable');
   }
+
+  const filteredResult = await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'search',
+    'Knowledge Map',
+    '--backend',
+    'scan',
+    '--type',
+    'Map',
+    '--status',
+    'active',
+    '--path',
+    '06-02',
+    '--sort',
+    'path',
+    '--json',
+  ], { env: english.env });
+  const filteredSearch = JSON.parse(filteredResult.stdout);
+  assert.equal(filteredSearch.total, 1);
+  assert.equal(filteredSearch.unfilteredTotal >= filteredSearch.total, true);
+  assert.equal(filteredSearch.sort, 'path');
+  assert.equal(filteredSearch.results[0].relativePath, 'en/06. Resources/06-02. Maps/06-02-01. Knowledge Map.md');
+
+  const textSearch = await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'search',
+    'Knowledge Map',
+    '--backend',
+    'scan',
+    '--type',
+    'Map',
+  ], { env: english.env });
+  assert.match(textSearch.stdout, /- backend: scan/);
+  assert.match(textSearch.stdout, /- filters: type=Map/);
 
   const korean = await setupIsolatedWiki('omw-search-ko-', 'ko');
   const koreanResult = await execFileAsync(process.execPath, [cliPath, 'wiki', 'search', '지식 지도', '--json', '--limit', '20'], {
@@ -482,6 +520,33 @@ test('wiki contract explain summarizes contract shape and schema is valid JSON',
   assert.equal(explained.language, 'en');
   assert.equal(explained.search.root, 'en');
   assert(explained.raw.types.some((type) => type.key === 'agent_session'));
+
+  const valid = JSON.parse((await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'contract',
+    '--validate',
+    '--json',
+  ], { env })).stdout);
+  assert.equal(valid.ok, true);
+  assert.equal(valid.validation.ok, true);
+
+  const invalid = await setupIsolatedWiki('omw-contract-invalid-', 'en');
+  const contractPath = path.join(invalid.wiki, '.omw/contract.json');
+  const invalidContract = JSON.parse(await readFile(contractPath, 'utf8'));
+  delete invalidContract.raw.types;
+  await writeFile(contractPath, `${JSON.stringify(invalidContract, null, 2)}\n`);
+  await assert.rejects(
+    async () => {
+      try {
+        await execFileAsync(process.execPath, [cliPath, 'wiki', 'contract', '--validate', '--json'], { env: invalid.env });
+      } catch (error) {
+        assert.match(error.stdout, /raw\.types is required/);
+        throw error;
+      }
+    },
+    /Command failed/,
+  );
 
   const schema = JSON.parse(await readFile('docs/wiki-contract.schema.json', 'utf8'));
   assert.equal(schema.title, 'Oh My Wiki Contract');
@@ -542,6 +607,61 @@ test('scan search matches separated query terms and preserves raw exclusions', a
   assert(search.results.some((item) => item.relativePath === 'notes/multi-term.md'));
   assert(search.results.every((item) => item.relativePath !== 'notes/partial.md'));
   assert(search.results.every((item) => !item.relativePath.startsWith('raw/')));
+});
+
+test('wiki search filters are applied before final limit', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'omw-search-filter-window-'));
+  const home = path.join(root, 'state');
+  const wiki = path.join(root, 'wiki');
+  await mkdir(path.join(wiki, 'notes'), { recursive: true });
+  for (let index = 0; index < 120; index += 1) {
+    await writeFile(path.join(wiki, 'notes', `common-${String(index).padStart(3, '0')}.md`), `# Common ${index}\n\ncommon body\n`);
+  }
+  await writeFile(path.join(wiki, 'notes', 'zzz-map.md'), [
+    '---',
+    'type: Map',
+    'status: active',
+    '---',
+    '# Common Filtered Map',
+    '',
+    'common body',
+    '',
+  ].join('\n'));
+
+  const env = { ...process.env, OH_MY_WIKI_HOME: home };
+  await execFileAsync(process.execPath, [
+    cliPath,
+    'setup',
+    '--wiki',
+    wiki,
+    '--language',
+    'en',
+    '--no-hooks',
+    '--codex-home',
+    path.join(root, 'codex'),
+    '--claude-home',
+    path.join(root, 'claude'),
+    '--omx-bin',
+    'omw-definitely-missing-command',
+    '--omc-bin',
+    'omw-definitely-missing-command',
+  ], { env });
+
+  const filtered = JSON.parse((await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'search',
+    'common',
+    '--backend',
+    'scan',
+    '--type',
+    'Map',
+    '--limit',
+    '1',
+    '--json',
+  ], { env })).stdout);
+  assert.equal(filtered.total, 1);
+  assert.equal(filtered.results[0].relativePath, 'notes/zzz-map.md');
 });
 
 test('sqlite search keeps legacy default ranking unless contract overrides it', async () => {
@@ -821,20 +941,27 @@ test('wiki ingest promotes to an explicit durable target and updates raw state',
     rawRef,
     '--promote',
     '--target',
-    'en/03. Permanent Notes/promoted-source.md',
+    'en/03. Permanent Notes/03-promoted-source.md',
     '--json',
   ], { env })).stdout);
   assert.equal(promoted.promotion.writePerformed, true);
-  assert.equal(promoted.promotion.relativePath, 'en/03. Permanent Notes/promoted-source.md');
+  assert.equal(promoted.promotion.relativePath, 'en/03. Permanent Notes/03-promoted-source.md');
   assert.equal(promoted.promotion.rawStateUpdated, true);
+  assert.equal(promoted.promotion.template, 'base-wiki-permanent-note');
 
   const note = await readFile(path.join(wiki, promoted.promotion.relativePath), 'utf8');
   assert.match(note, /sourceRaw:/);
+  assert.match(note, /type: Permanent Note/);
+  assert.match(note, /documentationLens: promoted-note/);
+  assert.match(note, /parentHub: \[\[06-02-01\. Knowledge Map\]\]/);
   assert.match(note, /Promotable raw body/);
   const raw = await readFile(path.join(wiki, rawRef), 'utf8');
   assert.match(raw, /ingestState: promoted/);
   const afterQueue = JSON.parse((await execFileAsync(process.execPath, [cliPath, 'wiki', 'queue', '--json'], { env })).stdout);
   assert.equal(afterQueue.total, 0);
+
+  const validation = await execFileAsync(process.execPath, [cliPath, 'wiki', 'validate'], { env });
+  assert.match(validation.stdout, /OK: base wiki validation passed/);
 
   await assert.rejects(
     execFileAsync(process.execPath, [
@@ -844,7 +971,7 @@ test('wiki ingest promotes to an explicit durable target and updates raw state',
       rawRef,
       '--promote',
       '--target',
-      'en/03. Permanent Notes/promoted-source.md',
+      'en/03. Permanent Notes/03-promoted-source.md',
     ], { env }),
     /Use --overwrite-promote/,
   );

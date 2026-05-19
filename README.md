@@ -215,10 +215,13 @@ Raw notes are source material. They are intentionally review-first:
 1. capture raw context
 2. inspect the Raw queue
 3. generate an ingest preview
-4. promote useful knowledge into durable notes by deliberate editing
-5. refresh the search index
+4. optionally write a draft-status durable note to an explicit target
+5. curate that promoted draft before treating it as stable knowledge
+6. refresh the search index
 
-OMW does not automatically rewrite your durable wiki notes during ingest.
+OMW does not guess where durable knowledge belongs. Promotion only writes when
+you pass `--promote --target <relative-note.md>`, and existing promoted notes
+are protected unless you opt into `--overwrite-promote`.
 
 ### Search
 
@@ -231,6 +234,9 @@ is `auto`:
 Search respects the contract's active search root and excluded directories, so
 Raw queues, templates, and source folders can stay out of normal results.
 Ranking weights can be tuned with `search.ranking` in the wiki contract.
+Use `--type`, `--status`, and `--path` to narrow results by detected
+frontmatter metadata or wiki-relative paths. Non-JSON output includes the
+selected backend and fallback reason when SQLite search falls back to scan.
 
 ## Commands
 
@@ -244,14 +250,15 @@ Ranking weights can be tuned with `search.ranking` in the wiki contract.
 | `omw wiki init [--wiki <path>] [--language en|ko]` | Wiki-scoped alias for `omw init`. |
 | `omw wiki contract --refresh` | Regenerate `.omw/contract.json` from the wiki. |
 | `omw wiki contract --explain` | Print a concise summary of the active contract. |
+| `omw wiki contract --validate` | Validate the active contract's required schema shape. |
 | `omw wiki refresh [--target all|contract|index]` | Refresh contract and/or search index. |
-| `omw search "<query>"` | Search wiki notes. Alias for `omw wiki search`. |
+| `omw search "<query>"` | Search wiki notes. Alias for `omw wiki search`; supports `--backend`, `--type`, `--status`, `--path`, and `--sort`. |
 | `omw capture --title "<title>" --stdin` | Capture an agent-session Raw note from stdin. |
 | `omw queue` | List pending Raw notes. |
 | `omw ingest <raw-note>` | Build a review-only ingest preview for a Raw note. |
 | `omw ingest <raw-note> --write-draft` | Write a review draft under `.omw/ingest-drafts/`. |
 | `omw ingest <raw-note> --write-draft --overwrite-draft` | Replace an existing review draft; drafts are protected by default. |
-| `omw ingest <raw-note> --promote --target <relative-note.md>` | Write a draft-status durable note to an explicit wiki-relative target and mark the Raw note promoted. |
+| `omw ingest <raw-note> --promote --target <relative-note.md>` | Write a draft-status durable note to an explicit wiki-relative target and mark the Raw note promoted. Base-wiki targets receive section-aware draft frontmatter. |
 | `omw daily --author <name> --team <team> --date YYYY-MM-DD --stdin` | Create or update a daily report Raw note. |
 | `omw report-raw-ingest [--language en|ko]` | Summarize Raw ingest states and targets. |
 | `omw report-daily [--date YYYY-MM-DD] [--author <name>] [--team <team>]` | Summarize daily report Raw notes. |
@@ -337,8 +344,10 @@ omw skills uninstall --platform codex --name wiki-search
 ## Security and Privacy
 
 OMW is local-first, but it still handles sensitive session material. The runtime
-includes redaction for common secret-like strings, local paths, and session IDs
-when capturing Raw notes.
+includes redaction for common secret-like strings, JWTs, bearer tokens, GitHub
+tokens, private keys, signed URL query secrets, local paths, and session IDs
+when capturing Raw notes. Redaction is a safety net, not a substitute for
+review.
 
 Recommended practice:
 

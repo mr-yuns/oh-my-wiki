@@ -36,8 +36,9 @@ export async function loadWikiContract(wikiPath) {
       issues.push(`wiki contract is not valid JSON: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-  if (contract && ![1, 2].includes(contract.schemaVersion)) issues.push(`unsupported wiki contract schemaVersion: ${contract.schemaVersion ?? '(missing)'}`);
-  return { ok: issues.length === 0, configured: true, wikiPath, contractPath, wikiExists, contractExists, contract, issues };
+  const validation = contract ? validateWikiContractShape(contract) : { ok: false, issues: [] };
+  if (contract) issues.push(...validation.issues);
+  return { ok: issues.length === 0, configured: true, wikiPath, contractPath, wikiExists, contractExists, contract, contractValidation: validation, issues };
 }
 
 export async function ensureWikiContract(wikiPath, options = {}) {
@@ -121,6 +122,96 @@ export async function loadWikiRuleSummaries(status, keys = []) {
     summaries.push({ key: rule.key, label: rule.label, path: rule.path, exists: rule.exists, title: text.match(/^#\s+(.+)$/m)?.[1]?.trim() || rule.label, excerpt: summarizeRuleText(text) });
   }
   return summaries;
+}
+
+export function validateWikiContractShape(contract) {
+  const issues = [];
+  if (!isPlainObject(contract)) return { ok: false, issues: ['wiki contract must be a JSON object'] };
+  requireIntegerEnum(contract, 'schemaVersion', [1, 2], issues);
+  requireString(contract, 'generatedBy', issues);
+  requireString(contract, 'language', issues);
+  requireObject(contract, 'raw', issues);
+  requireObject(contract, 'ingest', issues);
+  requireObject(contract, 'search', issues);
+  if (isPlainObject(contract.raw)) {
+    requireString(contract.raw, 'root', issues, 'raw.root');
+    requireObject(contract.raw, 'types', issues, 'raw.types');
+    requireStringArray(contract.raw, 'noteTypes', issues, 'raw.noteTypes', { optional: true });
+    requireStringArray(contract.raw, 'ingestStates', issues, 'raw.ingestStates', { optional: true });
+    if (isPlainObject(contract.raw.types)) {
+      for (const [key, type] of Object.entries(contract.raw.types)) {
+        if (!isPlainObject(type)) {
+          issues.push(`raw.types.${key} must be an object`);
+          continue;
+        }
+        requireString(type, 'folder', issues, `raw.types.${key}.folder`);
+      }
+    }
+  }
+  if (isPlainObject(contract.ingest)) {
+    requireStringArray(contract.ingest, 'pendingStates', issues, 'ingest.pendingStates', { optional: true });
+    requireStringArray(contract.ingest, 'candidateTargets', issues, 'ingest.candidateTargets', { optional: true });
+    requireStringArray(contract.ingest, 'ruleKeys', issues, 'ingest.ruleKeys', { optional: true });
+    if (Object.hasOwn(contract.ingest, 'approvalRequiredForPromotedNotes') && typeof contract.ingest.approvalRequiredForPromotedNotes !== 'boolean') {
+      issues.push('ingest.approvalRequiredForPromotedNotes must be a boolean');
+    }
+  }
+  if (isPlainObject(contract.search)) {
+    requireStringArray(contract.search, 'excludeDirs', issues, 'search.excludeDirs');
+    if (Object.hasOwn(contract.search, 'root') && typeof contract.search.root !== 'string') issues.push('search.root must be a string');
+    if (Object.hasOwn(contract.search, 'ranking')) {
+      if (!isPlainObject(contract.search.ranking)) {
+        issues.push('search.ranking must be an object');
+      } else {
+        for (const [key, value] of Object.entries(contract.search.ranking)) {
+          if (typeof value !== 'number' || !Number.isFinite(value) || value < 0) {
+            issues.push(`search.ranking.${key} must be a non-negative number`);
+          }
+        }
+      }
+    }
+  }
+  return { ok: issues.length === 0, issues };
+}
+
+function requireIntegerEnum(object, key, values, issues, label = key) {
+  if (!Object.hasOwn(object, key)) {
+    issues.push(`${label} is required`);
+    return;
+  }
+  if (!Number.isInteger(object[key]) || !values.includes(object[key])) {
+    issues.push(`${label} must be one of: ${values.join(', ')}`);
+  }
+}
+
+function requireString(object, key, issues, label = key) {
+  if (!Object.hasOwn(object, key)) {
+    issues.push(`${label} is required`);
+    return;
+  }
+  if (typeof object[key] !== 'string') issues.push(`${label} must be a string`);
+}
+
+function requireObject(object, key, issues, label = key) {
+  if (!Object.hasOwn(object, key)) {
+    issues.push(`${label} is required`);
+    return;
+  }
+  if (!isPlainObject(object[key])) issues.push(`${label} must be an object`);
+}
+
+function requireStringArray(object, key, issues, label = key, options = {}) {
+  if (!Object.hasOwn(object, key)) {
+    if (!options.optional) issues.push(`${label} is required`);
+    return;
+  }
+  if (!Array.isArray(object[key]) || object[key].some((item) => typeof item !== 'string')) {
+    issues.push(`${label} must be an array of strings`);
+  }
+}
+
+function isPlainObject(value) {
+  return Boolean(value && typeof value === 'object' && !Array.isArray(value));
 }
 
 function scannerContractsEquivalent(current, scanned) {

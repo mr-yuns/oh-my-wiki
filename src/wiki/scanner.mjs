@@ -1,12 +1,12 @@
 import path from 'node:path';
-import { mkdir, readdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, writeFile } from 'node:fs/promises';
 import { pathExists } from '../utils/fs.js';
+import { inventoryDirectories, inventoryMarkdownFiles } from './scanner/inventory.mjs';
+import { normalizeComparable } from './scanner/text.mjs';
 
 const SCANNER_NAME = 'omw-contract-scanner';
 const SCANNER_VERSION = 1;
 const DEFAULT_WIKI_LANGUAGE = 'en';
-const IGNORED_DIRS = new Set(['.git', '.hg', '.svn', '.omw', '.omx', '.obsidian', 'node_modules', '.DS_Store']);
-const MARKDOWN_EXTENSIONS = new Set(['.md', '.mdx']);
 
 export async function scanWikiContract(wikiPath, options = {}) {
   const language = normalizeLanguage(options.language || options.wikiLanguage);
@@ -65,75 +65,6 @@ export async function scanWikiContract(wikiPath, options = {}) {
     search,
     daily,
   };
-}
-
-async function inventoryMarkdownFiles(wikiPath) {
-  const out = [];
-  await walk(wikiPath, wikiPath, out);
-  out.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
-  return out;
-}
-
-async function inventoryDirectories(wikiPath) {
-  const out = [];
-  await walkDirectories(wikiPath, wikiPath, out);
-  out.sort((a, b) => a.localeCompare(b));
-  return out;
-}
-
-async function walk(root, dir, out) {
-  const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
-  for (const entry of entries) {
-    if (entry.isDirectory() && IGNORED_DIRS.has(entry.name)) continue;
-    const fullPath = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      await walk(root, fullPath, out);
-      continue;
-    }
-    if (!entry.isFile() || !MARKDOWN_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) continue;
-    const text = await readFile(fullPath, 'utf8').catch(() => '');
-    const relativePath = normalizePath(path.relative(root, fullPath));
-    const signalText = stripFencedCodeBlocks(text);
-    out.push({
-      path: fullPath,
-      relativePath,
-      segments: relativePath.split('/'),
-      text,
-      frontmatter: parseFrontmatter(text),
-      title: text.match(/^#\s+(.+)$/m)?.[1]?.trim() || path.basename(relativePath, path.extname(relativePath)),
-      headings: [...text.matchAll(/^#{1,6}\s+(.+)$/gm)].map((match) => match[1].trim()),
-      placeholders: new Set([...signalText.matchAll(/\{\{\s*([a-zA-Z0-9_.-]+)\s*\}\}/g)].map((match) => match[1])),
-    });
-  }
-}
-
-function stripFencedCodeBlocks(text) {
-  const out = [];
-  let fence = null;
-  for (const line of String(text || '').split(/\r?\n/)) {
-    const opener = line.match(/^ {0,3}(`{3,}|~{3,})/);
-    if (!fence && opener) {
-      fence = { marker: opener[1][0], length: opener[1].length };
-      continue;
-    }
-    if (fence) {
-      const closer = line.match(/^ {0,3}(`{3,}|~{3,})\s*$/);
-      if (closer && closer[1][0] === fence.marker && closer[1].length >= fence.length) fence = null;
-      continue;
-    }
-    out.push(line);
-  }
-  return out.join('\n');
-}
-
-async function walkDirectories(root, dir, out) {
-  const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
-  for (const entry of entries) {
-    if (!entry.isDirectory() || IGNORED_DIRS.has(entry.name)) continue;
-    const fullPath = path.join(dir, entry.name);
-    out.push(normalizePath(path.relative(root, fullPath)));
-    await walkDirectories(root, fullPath, out);
-  }
 }
 
 function detectProfile(files, language, directories) {
@@ -647,17 +578,6 @@ function evaluateCapabilities({ files, raw, rules, daily, templates, search }) {
   };
 }
 
-function parseFrontmatter(text) {
-  const match = String(text || '').match(/^---\r?\n([\s\S]*?)\r?\n---/);
-  if (!match) return {};
-  const data = {};
-  for (const line of match[1].split(/\r?\n/)) {
-    const item = line.match(/^([^:#][^:]*):\s*(.*)$/);
-    if (item) data[item[1].trim()] = item[2].trim();
-  }
-  return data;
-}
-
 function topLevelDirs(files, directories = []) {
   const dirs = new Set();
   for (const dir of directories) {
@@ -742,12 +662,4 @@ function defaultIngestStates(language) {
 
 function normalizeLanguage(value) {
   return String(value || DEFAULT_WIKI_LANGUAGE).trim().toLowerCase();
-}
-
-function normalizePath(value) {
-  return String(value || '').split(path.sep).join('/').normalize('NFC');
-}
-
-function normalizeComparable(value) {
-  return String(value || '').normalize('NFC').trim().toLowerCase();
 }

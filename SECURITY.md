@@ -26,7 +26,8 @@ Useful reports include:
 
 ## Sensitive Data Handling
 
-OMW attempts to redact common secret-like strings, local paths, and session IDs
+OMW attempts to redact common secret-like strings, JWTs, bearer tokens, GitHub
+tokens, private keys, signed URL query secrets, local paths, and session IDs
 when capturing Raw notes. Redaction is a safety net, not a guarantee. Users and
 agents should still avoid capturing credentials, tokens, signed URLs, private
 keys, and personal identifiers.

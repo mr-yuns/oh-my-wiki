@@ -154,6 +154,21 @@ async function wikiContract({ config, options }) {
     }
   }
   const status = await buildWikiStatus(config);
+  if (options.validate) {
+    const validation = status.contractValidation || { ok: false, issues: ['wiki contract is not loaded'] };
+    const result = {
+      ok: status.contractExists && validation.ok,
+      path: status.contractPath,
+      schemaVersion: status.contract?.schemaVersion || null,
+      validation,
+      issues: validation.issues,
+    };
+    if (options.json) {
+      return { exitCode: result.ok ? 0 : 1, output: `${JSON.stringify(result, null, 2)}\n` };
+    }
+    if (result.ok) return { exitCode: 0, output: `OK: wiki contract validation passed\n` };
+    return { exitCode: 1, output: `wiki contract validation failed:\n- ${result.issues.join('\n- ')}\n` };
+  }
   if (options.explain) {
     const explanation = explainWikiContract(status);
     if (options.json) {
@@ -279,6 +294,7 @@ async function wikiIngest({ config, options }) {
     `- write performed: ${result.writePerformed ? 'yes' : 'no'}`,
     ...(result.relativePath ? [`- draft: ${result.relativePath}`] : []),
     ...(result.promotion?.relativePath ? [`- promoted: ${result.promotion.relativePath}`] : []),
+    ...(result.promotion?.template ? [`- promotion template: ${result.promotion.template}`] : []),
     `- next: ${result.review.instruction}`,
   ];
   if (result.rules?.length > 0) {
@@ -298,6 +314,12 @@ async function wikiSearch({ config, options }) {
     query,
     limit: Number.parseInt(options.limit || '20', 10),
     backend: options.backend || 'auto',
+    filters: {
+      type: options.type,
+      status: options.status,
+      path: options.path,
+    },
+    sort: options.sort || 'relevance',
   });
   if (options.json) {
     return {
@@ -305,9 +327,18 @@ async function wikiSearch({ config, options }) {
       output: `${JSON.stringify(result, null, 2)}\n`,
     };
   }
-  const lines = [`Wiki search: ${result.query}`, `- total: ${result.total}`];
+  const activeFilters = Object.entries(result.filters || {}).filter(([, value]) => value);
+  const lines = [
+    `Wiki search: ${result.query}`,
+    `- backend: ${result.backend}`,
+    `- total: ${result.total}`,
+    ...(result.unfilteredTotal !== result.total ? [`- unfiltered total: ${result.unfilteredTotal}`] : []),
+    ...(activeFilters.length > 0 ? [`- filters: ${activeFilters.map(([key, value]) => `${key}=${value}`).join(', ')}`] : []),
+    ...(result.sort && result.sort !== 'relevance' ? [`- sort: ${result.sort}`] : []),
+    ...(result.fallbackReason ? [`- fallback: ${result.fallbackReason}`] : []),
+  ];
   for (const item of result.results) {
-    lines.push(`- ${item.relativePath}`);
+    lines.push(`- ${item.relativePath}${item.title ? ` - ${item.title}` : ''}`);
     if (item.excerpt) lines.push(`  ${item.excerpt}`);
   }
   return {

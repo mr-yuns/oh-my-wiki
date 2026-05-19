@@ -317,7 +317,7 @@ Usage:
   omw doctor [--json]
   omw wiki --help
   omw wiki init|status|refresh|contract|search|capture|queue|ingest|daily|report-raw-ingest|report-daily|validate
-  omw search "<query>" [--backend auto|sqlite|scan]
+  omw search "<query>" [--backend auto|sqlite|scan] [--type <type>] [--status <status>] [--path <path>] [--sort relevance|path|title]
   omw capture --title "<title>" --stdin
   omw ingest <raw-note> [--write-draft]
   omw ingest <raw-note> --promote --target <relative-note.md>
@@ -344,8 +344,8 @@ Usage:
   omw wiki status [--json]
   omw wiki init [--wiki <path>] [--language en|ko] [--json]
   omw wiki refresh [--target all|contract|index] [--json]
-  omw wiki contract [--refresh] [--explain] [--json]
-  omw wiki search "<query>" [--backend auto|sqlite|scan] [--limit <n>] [--json]
+  omw wiki contract [--refresh] [--explain|--validate] [--json]
+  omw wiki search "<query>" [--backend auto|sqlite|scan] [--limit <n>] [--type <type>] [--status <status>] [--path <path>] [--sort relevance|path|title] [--json]
   omw wiki capture --title "<title>" [--type agent_session|discussion] [--stdin|--body <text>] [--json]
   omw wiki queue [--json]
   omw wiki ingest <raw-note> [--write-draft] [--overwrite-draft] [--json]
@@ -358,6 +358,7 @@ Usage:
 Notes:
   --promote writes only to an explicit wiki-relative Markdown target.
   --backend scan is the dependency-free fallback; sqlite is used automatically when available.
+  Search filters match note frontmatter metadata and wiki-relative paths.
 `);
   return 0;
 }

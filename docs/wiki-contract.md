@@ -14,7 +14,8 @@ before a human promotes durable knowledge.
 The public JSON Schema for the contract is tracked at
 [`docs/wiki-contract.schema.json`](wiki-contract.schema.json). Use
 `omw wiki contract --explain` for a concise runtime summary of the active
-contract.
+contract, and `omw wiki contract --validate` to check the active contract's
+required schema shape without adding an external validator dependency.
 
 ## Lifecycle
 
@@ -109,12 +110,23 @@ template.
 `ingest.approvalRequiredForPromotedNotes` is currently expected to stay `true`.
 
 OMW ingest is review-first. `omw ingest <raw-note>` produces a preview and does
-not write promoted durable notes.
+not write promoted durable notes by default.
 
 `omw ingest <raw-note> --write-draft` writes a review draft under
 `.omw/ingest-drafts/`. Drafts are still not promoted durable notes; they are a
 workspace for manual review. Existing drafts are protected by default; add
 `--overwrite-draft` only when you intentionally want to replace the draft.
+
+`omw ingest <raw-note> --promote --target <relative-note.md>` writes a
+draft-status durable note to a wiki-relative target and updates the Raw note to
+the promoted ingest state when the Raw note exposes a supported state
+frontmatter key. Promotion requires an explicit Markdown target, refuses writes
+under `.omw` or the Raw root, and protects existing target files by default.
+Add `--overwrite-promote` only when replacing the promoted target is deliberate.
+When the target is inside a recognized bundled base-wiki section, OMW renders
+section-aware draft frontmatter such as `Permanent Note`, `Area Note`,
+`Operating Guide`, `Map`, or `Catalog` so the promoted draft remains compatible
+with base-wiki validation rules.
 
 ## Search Section
 
@@ -179,6 +191,7 @@ Useful commands:
 ```bash
 omw wiki status
 omw wiki contract --refresh
+omw wiki contract --validate
 omw wiki refresh --target contract
 omw wiki validate
 omw wiki queue --json

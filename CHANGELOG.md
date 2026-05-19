@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.1
+
+- Align public docs with explicit ingest promotion and hardened redaction
+  behavior.
+- Render base-wiki-aware promoted note frontmatter for explicit promotion
+  targets in numbered base-wiki sections.
+- Improve search output with backend visibility, fallback diagnostics, metadata
+  filters, and stable path/title sorting.
+- Add runtime contract shape validation via `omw wiki contract --validate`.
+- Split scanner inventory and text-normalization helpers out of the main
+  contract scanner module.
+
 ## 0.4.0
 
 - Add explicit ingest promotion to a user-selected durable Markdown target.

@@ -45,7 +45,20 @@ RAW_NOTE="$(node src/cli/omw.js queue --json |
 node src/cli/omw.js ingest "$RAW_NOTE"
 ```
 
-The ingest command is intentionally review-only. It prints the source Raw note,
-an excerpt, and rule notes to review before you manually promote durable wiki
-knowledge.
+The default ingest command is intentionally review-only. It prints the source
+Raw note, an excerpt, and rule notes without writing durable wiki knowledge.
 
+To promote a Raw note into a draft-status durable note, choose the target path
+explicitly:
+
+```bash
+node src/cli/omw.js ingest "$RAW_NOTE" \
+  --promote \
+  --target "en/03. Permanent Notes/03-demo-session.md"
+```
+
+Promotion never guesses the destination. Existing promoted notes are protected
+by default; add `--overwrite-promote` only when you intentionally want to
+replace the target. The generated promoted note is still a draft, but targets
+inside the bundled base wiki's numbered sections receive matching draft
+frontmatter so they remain validation-friendly.
