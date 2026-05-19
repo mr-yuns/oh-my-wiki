@@ -1088,6 +1088,22 @@ test('sqlite search keeps legacy default ranking unless contract overrides it', 
   assert.equal(overridden.results[0].rankSignals.ranking.title, 40);
 });
 
+test('sqlite search refuses symlinked index files before opening the database', async () => {
+  const { root, wiki, env } = await setupIsolatedWiki('omw-search-sqlite-symlink-', 'en');
+  const external = path.join(root, 'external-index.sqlite');
+  await writeFile(external, '');
+  await symlink(external, path.join(wiki, '.omw/index.sqlite'));
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [cliPath, 'wiki', 'search', 'Knowledge Map', '--json', '--backend', 'sqlite'], { env }),
+    (error) => {
+      const text = `${error.stderr || ''}\n${error.message || ''}`;
+      if (/sqlite search backend requires node:sqlite support|Wiki search backend is not available: sqlite/.test(text)) return true;
+      return /SQLite index must be a real file/.test(text);
+    },
+  );
+});
+
 test('sqlite search notices new markdown in a previously empty scanned directory within recent-sync TTL', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'omw-sqlite-fresh-'));
   const home = path.join(root, 'state');

@@ -2,6 +2,7 @@ import { watch } from 'node:fs';
 import { mkdir, readFile, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { pathExists } from '../../utils/fs.js';
+import { assertSafeExistingDirectory, assertSafeExistingFile, assertSafeOptionalOwmDirectory } from '../safety.mjs';
 import { DEFAULT_SQLITE_SEARCH_RANKING, excerptForTerms, markdownFiles, noteFileMetadata, noteSearchMetadata, normalizeSearchRanking, queryTerms, titleFromText } from './shared.mjs';
 
 const INDEX_RELATIVE_PATH = path.join('.omw', 'index.sqlite');
@@ -19,6 +20,7 @@ export const sqliteSearchBackend = {
       throw new Error('sqlite search backend requires node:sqlite support');
     }
     const dbPath = path.join(wikiPath, INDEX_RELATIVE_PATH);
+    await prepareSafeIndexPath(wikiPath, dbPath);
     await mkdir(path.dirname(dbPath), { recursive: true });
     const db = new sqlite.DatabaseSync(dbPath);
     try {
@@ -38,6 +40,7 @@ export async function ensureSqliteSearchIndex({ wikiPath, searchRootPath, exclud
   }
   const dbPath = path.join(wikiPath, INDEX_RELATIVE_PATH);
   const existed = await pathExists(dbPath);
+  await prepareSafeIndexPath(wikiPath, dbPath);
   await mkdir(path.dirname(dbPath), { recursive: true });
   const db = new sqlite.DatabaseSync(dbPath);
   let stats;
@@ -54,6 +57,18 @@ export async function ensureSqliteSearchIndex({ wikiPath, searchRootPath, exclud
     created: !existed,
     ...stats,
   };
+}
+
+async function prepareSafeIndexPath(wikiPath, dbPath) {
+  const status = { wikiPath };
+  await assertSafeOptionalOwmDirectory(wikiPath);
+  const dbDir = path.dirname(dbPath);
+  if (await pathExists(dbDir)) {
+    await assertSafeExistingDirectory(status, dbDir, 'SQLite index directory');
+  }
+  if (await pathExists(dbPath)) {
+    await assertSafeExistingFile(status, dbPath, 'SQLite index');
+  }
 }
 
 async function loadSqlite() {
