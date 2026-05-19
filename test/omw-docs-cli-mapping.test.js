@@ -9,8 +9,9 @@ const execFileAsync = promisify(execFile);
 const cliPath = path.resolve('src/cli/omw.js');
 
 test('README command table and CLI help stay bidirectionally mapped', async () => {
-  const [readme, help, wikiHelp] = await Promise.all([
+  const [readme, wikiContractDocs, help, wikiHelp] = await Promise.all([
     readFile('README.md', 'utf8'),
+    readFile('docs/wiki-contract.md', 'utf8'),
     execFileAsync(process.execPath, [cliPath, '--help']).then((result) => result.stdout),
     execFileAsync(process.execPath, [cliPath, 'wiki', '--help']).then((result) => result.stdout),
   ]);
@@ -86,6 +87,7 @@ test('README command table and CLI help stay bidirectionally mapped', async () =
   });
   assert(readme.includes('understanding score'));
   assert(readme.includes('Wiki-specific Deep Interview'));
+  assert(wikiContractDocs.includes('candidate Raw roots'));
   assert(help.includes('Active wiki: OMW_WIKI_PATH, saved config, then repository .wiki'));
 });
 

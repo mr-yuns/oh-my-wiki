@@ -106,7 +106,9 @@ scope, and operating-rule notes.
 The human-readable `omw wiki contract --explain` output includes the handoff
 workflow, handoff prompt, missing dimension labels, reasons, and the specific
 question each dimension needs answered. The JSON form keeps the same fields
-under `understanding` for automation.
+under `understanding` for automation. When Raw root ambiguity exists, both the
+text and JSON explanations surface the candidate Raw roots so the Wiki-specific
+Deep Interview can ask the user to choose the correct structure.
 
 ## Raw Section
 
