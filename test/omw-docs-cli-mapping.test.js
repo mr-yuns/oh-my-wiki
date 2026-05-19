@@ -27,9 +27,63 @@ test('README command table and CLI help stay bidirectionally mapped', async () =
   }
   assert(help.includes('omw <omx launch flags...>'));
   assert(tableCommands.some((entry) => commandStem(entry) === passthroughLaunchCommand), `README command table is missing help command ${passthroughLaunchCommand}`);
+  assertReadmeOptionCoverage({ help, tableCommands });
+  assertReadmeOptionCoverage({ help: wikiHelp, tableCommands });
   assertSearchAliasOptionParity({ readme, help, wikiHelp, tableCommands });
   assertOptionParity({ tableCommands, help, command: 'omw queue', expectedOptions: ['--json'] });
   assertOptionParity({ tableCommands, help: wikiHelp, command: 'omw wiki queue', expectedOptions: ['--json'] });
+  assertOptionParity({
+    tableCommands,
+    help,
+    command: 'omw capture',
+    expectedOptions: ['--title', '--type', '--stdin', '--body', '--json'],
+  });
+  assertOptionParity({
+    tableCommands,
+    help: wikiHelp,
+    command: 'omw wiki capture',
+    expectedOptions: ['--title', '--type', '--stdin', '--body', '--json'],
+  });
+  assertOptionParity({
+    tableCommands,
+    help,
+    command: 'omw ingest',
+    expectedOptions: ['--write-draft', '--overwrite-draft', '--json'],
+  });
+  assertOptionParity({
+    tableCommands,
+    help: wikiHelp,
+    command: 'omw wiki ingest',
+    expectedOptions: ['--write-draft', '--overwrite-draft', '--json'],
+  });
+  assertOptionParity({
+    tableCommands,
+    help,
+    command: 'omw ingest',
+    requiredHelpFragment: '--promote',
+    requiredReadmeFragment: '--promote',
+    expectedOptions: ['--promote', '--target', '--overwrite-promote', '--json'],
+  });
+  assertOptionParity({
+    tableCommands,
+    help: wikiHelp,
+    command: 'omw wiki ingest',
+    requiredHelpFragment: '--promote',
+    requiredReadmeFragment: '--promote',
+    expectedOptions: ['--promote', '--target', '--overwrite-promote', '--json'],
+  });
+  assertOptionParity({
+    tableCommands,
+    help,
+    command: 'omw daily',
+    expectedOptions: ['--author', '--team', '--date', '--stdin', '--body', '--json'],
+  });
+  assertOptionParity({
+    tableCommands,
+    help: wikiHelp,
+    command: 'omw wiki daily',
+    expectedOptions: ['--author', '--team', '--date', '--stdin', '--body', '--json'],
+  });
   assert(readme.includes('understanding score'));
   assert(readme.includes('Wiki-specific Deep Interview'));
 });
@@ -98,15 +152,29 @@ function assertSearchAliasOptionParity({ readme, help, wikiHelp, tableCommands }
   for (const option of expectedOptions) {
     assert(topHelpLine.includes(option), `top-level omw search help is missing ${option}`);
     assert(wikiHelpLine.includes(option), `wiki search help is missing ${option}`);
-    assert(readme.includes(`\`${option}\``), `README is missing documented search option ${option}`);
     assert(topReadmeRow.includes(option) || readme.includes(`Alias for \`omw wiki search\`; supports`), `README omw search row is missing alias option coverage for ${option}`);
     assert(wikiReadmeRow.includes(option) || readme.includes(`Search wiki notes through the wiki command group; supports`), `README omw wiki search row is missing option coverage for ${option}`);
   }
 }
 
-function assertOptionParity({ tableCommands, help, command, expectedOptions }) {
-  const helpLine = usageLine(help, command);
-  const readmeRow = tableCommands.find((entry) => commandStem(entry) === command) || '';
+function assertReadmeOptionCoverage({ help, tableCommands }) {
+  for (const line of helpUsageLines(help)) {
+    const command = commandStem(line);
+    if (!command || command === 'omw') continue;
+    if (command.includes('|')) continue;
+    const expectedOptions = optionTokens(line);
+    if (expectedOptions.length === 0) continue;
+    const readmeRow = matchingReadmeRow({ line, command, tableCommands });
+    assert(readmeRow, `README command table is missing ${command}`);
+    for (const option of expectedOptions) {
+      assert(readmeRow.includes(option), `README ${command} row is missing ${option}`);
+    }
+  }
+}
+
+function assertOptionParity({ tableCommands, help, command, expectedOptions, requiredHelpFragment = '', requiredReadmeFragment = '' }) {
+  const helpLine = usageLine(help, command, requiredHelpFragment);
+  const readmeRow = tableCommands.find((entry) => commandStem(entry) === command && entry.includes(requiredReadmeFragment)) || '';
   assert(helpLine, `CLI help is missing ${command}`);
   assert(readmeRow, `README command table is missing ${command}`);
   for (const option of expectedOptions) {
@@ -115,9 +183,25 @@ function assertOptionParity({ tableCommands, help, command, expectedOptions }) {
   }
 }
 
-function usageLine(help, stem) {
+function helpUsageLines(help) {
   return help
     .split('\n')
     .map((line) => line.trim())
-    .find((line) => line.startsWith(stem)) || '';
+    .filter((line) => line.startsWith('omw '));
+}
+
+function optionTokens(command) {
+  return [...new Set(String(command || '').match(/--[a-z0-9-]+/g) || [])];
+}
+
+function matchingReadmeRow({ line, command, tableCommands }) {
+  const requiredFragment = line.includes('--promote') ? '--promote' : '';
+  return tableCommands.find((entry) => commandStem(entry) === command && entry.includes(requiredFragment)) || '';
+}
+
+function usageLine(help, stem, requiredFragment = '') {
+  return help
+    .split('\n')
+    .map((line) => line.trim())
+    .find((line) => line.startsWith(stem) && line.includes(requiredFragment)) || '';
 }

@@ -258,34 +258,33 @@ when SQLite indexing is available.
 
 | Command | Purpose |
 | --- | --- |
-| `omw setup [--wiki <path>] [--language en|ko]` | Configure OMW and generate the wiki contract. |
-| `omw init [--wiki <path>] [--language en|ko]` | Create or connect a wiki safely, then write config and contract. |
+| `omw setup [--wiki <path>] [--language en|ko] [--wiki-auto-capture]` | Configure OMW and generate the wiki contract. |
+| `omw init [--wiki <path>] [--language en|ko] [--json]` | Create or connect a wiki safely, then write config and contract. |
 | `omw doctor [--json]` | Check config, wiki readiness, and optional wrappers. |
 | `omw paths` | Print OMW state and configured paths. |
 | `omw wiki status [--json]` | Show connected wiki and contract health. |
-| `omw wiki init [--wiki <path>] [--language en|ko]` | Wiki-scoped alias for `omw init`. |
-| `omw wiki contract --refresh [--dry-run]` | Regenerate or preview `.omw/contract.json` from the wiki. |
+| `omw wiki init [--wiki <path>] [--language en|ko] [--json]` | Wiki-scoped alias for `omw init`. |
+| `omw wiki contract [--refresh] [--dry-run] [--explain|--validate] [--json]` | Regenerate, preview, explain, or validate `.omw/contract.json` from the wiki. |
 | `omw wiki contract --explain` | Print a concise summary of the active contract. |
 | `omw wiki contract --validate` | Validate the active contract's required schema shape. |
-| `omw wiki refresh [--target all|contract|index] [--dry-run]` | Refresh or preview contract and/or search index work. |
-| `omw wiki search "<query>"` | Search wiki notes through the wiki command group; supports `--backend`, `--limit`, `--type`, `--status`, `--path`, `--sort`, and `--json`. |
-| `omw wiki capture --title "<title>" --stdin` | Wiki-scoped form of Raw note capture. |
+| `omw wiki refresh [--target all|contract|index] [--dry-run] [--json]` | Refresh or preview contract and/or search index work. |
+| `omw wiki search "<query>" [--backend auto|sqlite|scan] [--limit <n>] [--type <type>] [--status <status>] [--path <path>] [--sort relevance|path|title] [--json]` | Search wiki notes through the wiki command group. |
+| `omw wiki capture --title "<title>" [--type agent_session|discussion] [--stdin|--body <text>] [--json]` | Wiki-scoped form of Raw note capture. |
 | `omw wiki queue [--json]` | Wiki-scoped pending Raw note queue. |
-| `omw wiki ingest <raw-note>` | Wiki-scoped Raw note ingest preview and draft/promote workflow. |
-| `omw wiki daily --author <name> --team <team> --date YYYY-MM-DD --stdin` | Wiki-scoped daily report Raw note creation. |
+| `omw wiki ingest <raw-note> [--write-draft] [--overwrite-draft] [--json]` | Wiki-scoped Raw note ingest preview and draft workflow. |
+| `omw wiki ingest <raw-note> --promote --target <relative-note.md> [--overwrite-promote] [--json]` | Wiki-scoped Raw note promotion workflow. |
+| `omw wiki daily --author <name> --team <team> --date YYYY-MM-DD [--stdin|--body <text>] [--json]` | Wiki-scoped daily report Raw note creation. |
 | `omw wiki report-raw-ingest [--language en|ko]` | Wiki-scoped Raw ingest state summary. |
-| `omw wiki report-daily [--date YYYY-MM-DD] [--author <name>] [--team <team>]` | Wiki-scoped daily report summary. |
+| `omw wiki report-daily [--language en|ko] [--date YYYY-MM-DD] [--author <name>] [--team <team>]` | Wiki-scoped daily report summary. |
 | `omw wiki validate [--json]` | Wiki-scoped validation. |
-| `omw search "<query>"` | Search wiki notes. Alias for `omw wiki search`; supports `--backend`, `--limit`, `--type`, `--status`, `--path`, `--sort`, and `--json`. |
-| `omw capture --title "<title>" --stdin` | Capture an agent-session Raw note from stdin. |
+| `omw search "<query>" [--backend auto|sqlite|scan] [--limit <n>] [--type <type>] [--status <status>] [--path <path>] [--sort relevance|path|title] [--json]` | Search wiki notes. Alias for `omw wiki search`. |
+| `omw capture --title "<title>" [--type agent_session|discussion] [--stdin|--body <text>] [--json]` | Capture an agent-session or discussion Raw note. |
 | `omw queue [--json]` | List pending Raw notes. |
-| `omw ingest <raw-note>` | Build a review-only ingest preview for a Raw note. |
-| `omw ingest <raw-note> --write-draft` | Write a review draft under `.omw/ingest-drafts/`. |
-| `omw ingest <raw-note> --write-draft --overwrite-draft` | Replace an existing review draft; drafts are protected by default. |
-| `omw ingest <raw-note> --promote --target <relative-note.md>` | Write a draft-status durable note to an explicit wiki-relative target and mark the Raw note promoted. Base-wiki targets receive section-aware draft frontmatter. |
-| `omw daily --author <name> --team <team> --date YYYY-MM-DD --stdin` | Create or update a daily report Raw note. |
+| `omw ingest <raw-note> [--write-draft] [--overwrite-draft] [--json]` | Build a review-only ingest preview or write/replace a protected review draft for a Raw note. |
+| `omw ingest <raw-note> --promote --target <relative-note.md> [--overwrite-promote] [--json]` | Write a draft-status durable note to an explicit wiki-relative target and mark the Raw note promoted. Base-wiki targets receive section-aware draft frontmatter. |
+| `omw daily --author <name> --team <team> --date YYYY-MM-DD [--stdin|--body <text>] [--json]` | Create or update a daily report Raw note. |
 | `omw report-raw-ingest [--language en|ko]` | Summarize Raw ingest states and targets. |
-| `omw report-daily [--date YYYY-MM-DD] [--author <name>] [--team <team>]` | Summarize daily report Raw notes. |
+| `omw report-daily [--language en|ko] [--date YYYY-MM-DD] [--author <name>] [--team <team>]` | Summarize daily report Raw notes. |
 | `omw validate [--json]` | Validate the connected wiki with profile-aware base or contract rules. |
 | `omw wiki --help` | Show wiki command group help. |
 | `omw codex-hooks install` | Install Codex hook entries. |

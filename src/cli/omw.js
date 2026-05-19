@@ -372,11 +372,11 @@ Usage:
   omw wiki --help
   omw wiki init|status|refresh|contract|search|capture|queue|ingest|daily|report-raw-ingest|report-daily|validate
   omw search "<query>" [--backend auto|sqlite|scan] [--limit <n>] [--type <type>] [--status <status>] [--path <path>] [--sort relevance|path|title] [--json]
-  omw capture --title "<title>" --stdin
+  omw capture --title "<title>" [--type agent_session|discussion] [--stdin|--body <text>] [--json]
   omw queue [--json]
-  omw ingest <raw-note> [--write-draft]
-  omw ingest <raw-note> --promote --target <relative-note.md>
-  omw daily --author "<name>" --team "<team>" --date YYYY-MM-DD --stdin
+  omw ingest <raw-note> [--write-draft] [--overwrite-draft] [--json]
+  omw ingest <raw-note> --promote --target <relative-note.md> [--overwrite-promote] [--json]
+  omw daily --author "<name>" --team "<team>" --date YYYY-MM-DD [--stdin|--body <text>] [--json]
   omw report-raw-ingest [--language en|ko]
   omw report-daily [--language en|ko] [--date YYYY-MM-DD] [--author <name>] [--team <team>]
   omw validate [--json]
