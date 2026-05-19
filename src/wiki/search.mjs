@@ -2,6 +2,7 @@ import { buildWikiStatus } from './contract.mjs';
 import { scanSearchBackend } from './search/scan.mjs';
 import { normalizeSearchRanking } from './search/shared.mjs';
 import { ensureSqliteSearchIndex, sqliteSearchBackend } from './search/sqlite.mjs';
+import { assertSafeExistingDirectory } from './safety.mjs';
 
 const SEARCH_BACKENDS = new Map([
   [scanSearchBackend.name, scanSearchBackend],
@@ -20,11 +21,12 @@ export async function searchWiki({ config, query, limit = 20, backend = 'auto', 
   const selectedBackend = await resolveSearchBackend(backend);
   const rankingOverrides = status.search?.ranking || {};
   const backendLimit = requiresFullCandidateSet(filters, sort) ? ALL_MATCHES_LIMIT : limit;
+  const searchRootPath = await activeSearchRoot(status);
   let result;
   try {
     result = await selectedBackend.search({
       wikiPath: status.wikiPath,
-      searchRootPath: activeSearchRoot(status),
+      searchRootPath,
       excludeDirs: status.search?.excludeDirs || [],
       rankingOverrides,
       query: normalized,
@@ -35,7 +37,7 @@ export async function searchWiki({ config, query, limit = 20, backend = 'auto', 
     if (backend !== 'auto' || selectedBackend.name !== sqliteSearchBackend.name) throw error;
     const fallbackResult = await scanSearchBackend.search({
       wikiPath: status.wikiPath,
-      searchRootPath: activeSearchRoot(status),
+      searchRootPath,
       excludeDirs: status.search?.excludeDirs || [],
       rankingOverrides,
       query: normalized,
@@ -74,8 +76,9 @@ export async function ensureWikiSearchIndex({ config }) {
   }
   const rankingOverrides = status.search?.ranking || {};
   normalizeSearchRanking(rankingOverrides);
+  const searchRootPath = await activeSearchRoot(status);
   try {
-    const result = await ensureSqliteSearchIndex({ wikiPath: status.wikiPath, searchRootPath: activeSearchRoot(status), excludeDirs: status.search?.excludeDirs || [], rankingOverrides });
+    const result = await ensureSqliteSearchIndex({ wikiPath: status.wikiPath, searchRootPath, excludeDirs: status.search?.excludeDirs || [], rankingOverrides });
     return {
       ...result,
       issues: [],
@@ -93,8 +96,10 @@ export async function ensureWikiSearchIndex({ config }) {
   }
 }
 
-function activeSearchRoot(status) {
-  return status.search?.rootExists ? status.search.rootPath : status.wikiPath;
+async function activeSearchRoot(status) {
+  const root = status.search?.rootExists ? status.search.rootPath : status.wikiPath;
+  await assertSafeExistingDirectory(status, root, 'Search root');
+  return root;
 }
 
 async function resolveSearchBackend(name) {

@@ -803,6 +803,40 @@ test('wiki search accepts contract ranking overrides and rejects invalid keys', 
   );
 });
 
+test('wiki search and validation refuse symlinked search roots before reading', async () => {
+  const { root, wiki, env } = await setupIsolatedWiki('omw-search-root-symlink-', 'en');
+  const external = path.join(root, 'external-search-root');
+  await mkdir(external, { recursive: true });
+  await writeFile(path.join(external, 'external.md'), '# External Secret\n\noutside-only-needle\n');
+  await symlink(external, path.join(wiki, 'linked-search-root'), 'dir');
+  const contractPath = path.join(wiki, '.omw/contract.json');
+  const contract = JSON.parse(await readFile(contractPath, 'utf8'));
+  contract.source.profile = 'generic-markdown';
+  contract.search.root = 'linked-search-root';
+  contract.search.excludeDirs = [];
+  await writeFile(contractPath, `${JSON.stringify(contract, null, 2)}\n`);
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [cliPath, 'wiki', 'search', 'outside-only-needle', '--backend', 'scan'], { env }),
+    /Search root must be a real directory/,
+  );
+  await assert.rejects(
+    execFileAsync(process.execPath, [cliPath, 'wiki', 'refresh', '--target', 'index'], { env }),
+    /Search root must be a real directory/,
+  );
+  await assert.rejects(
+    async () => {
+      try {
+        await execFileAsync(process.execPath, [cliPath, 'wiki', 'validate'], { env });
+      } catch (error) {
+        assert.match(error.stdout, /Search root must be a real directory/);
+        throw error;
+      }
+    },
+    /Command failed/,
+  );
+});
+
 test('wiki contract explain summarizes contract shape and schema is valid JSON', async () => {
   const { env } = await setupIsolatedWiki('omw-contract-explain-', 'en');
   const explained = JSON.parse((await execFileAsync(process.execPath, [

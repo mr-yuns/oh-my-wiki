@@ -179,7 +179,16 @@ async function validateContractWiki(status) {
   if (status.raw?.rootPath && !status.raw.rootExists) {
     failures.push(`wiki raw root does not exist: ${status.raw.rootPath}`);
   }
-  const markdownFiles = status.search?.rootPath && status.search.rootExists
+  let searchRootSafe = true;
+  if (status.search?.rootPath && status.search.rootExists) {
+    try {
+      await assertSafeExistingDirectory(status, status.search.rootPath, 'Search root');
+    } catch (error) {
+      searchRootSafe = false;
+      failures.push(error instanceof Error ? error.message : String(error));
+    }
+  }
+  const markdownFiles = searchRootSafe && status.search?.rootPath && status.search.rootExists
     ? await listMarkdownFiles(status.search.rootPath, {
       root: status.wikiPath,
       base: status.search.rootPath,
