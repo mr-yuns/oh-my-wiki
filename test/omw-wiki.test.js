@@ -241,6 +241,39 @@ test('init does not overwrite hidden-only wiki directories', async () => {
   assert.equal(await readFile(path.join(wiki, '.gitignore'), 'utf8'), 'custom\n');
 });
 
+test('setup refuses symlinked .omw before writing managed contract assets', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'omw-setup-omw-symlink-'));
+  const home = path.join(root, 'state');
+  const wiki = path.join(root, 'wiki');
+  const external = path.join(root, 'external-omw');
+  await mkdir(path.join(wiki, 'notes'), { recursive: true });
+  await writeFile(path.join(wiki, 'notes/alpha.md'), '# Alpha\n\nExisting personal note.\n');
+  await mkdir(external, { recursive: true });
+  await symlink(external, path.join(wiki, '.omw'), 'dir');
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      cliPath,
+      'setup',
+      '--wiki',
+      wiki,
+      '--no-hooks',
+      '--codex-home',
+      path.join(root, 'codex'),
+      '--claude-home',
+      path.join(root, 'claude'),
+      '--omx-bin',
+      'omw-definitely-missing-command',
+      '--omc-bin',
+      'omw-definitely-missing-command',
+    ], { env: { ...process.env, OH_MY_WIKI_HOME: home } }),
+    /.omw directory must be a real directory/,
+  );
+  await assert.rejects(readFile(path.join(external, 'contract.json'), 'utf8'));
+  await assert.rejects(readdir(path.join(external, 'raw')));
+  await assert.rejects(readdir(path.join(external, 'templates')));
+});
+
 test('omx wrapper supports env override and top-level passthrough', async () => {
   const { env } = await setupIsolatedWiki('omw-wrapper-', 'en', { omxBin: process.execPath });
   const wrapped = await execFileAsync(process.execPath, [
