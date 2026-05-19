@@ -217,6 +217,25 @@ export async function loadWikiRuleSummaries(status, keys = []) {
   return summaries;
 }
 
+export function contractUnderstandingNotice(status, action = 'write-oriented wiki workflow') {
+  const understanding = status?.understanding || status?.contract?.understanding;
+  if (!understanding || understanding.complete || understanding.score === 100 || !understanding.handoff?.recommended) return null;
+  const workflow = understanding.handoff.workflow || 'wiki-deep-interview';
+  return {
+    requiresClarification: true,
+    score: Number.isInteger(understanding.score) ? understanding.score : 0,
+    workflow,
+    prompt: understanding.handoff.prompt || 'Run a Wiki-specific Deep Interview before write-oriented wiki workflows.',
+    missingDimensions: (understanding.missingDimensions || []).map((item) => ({
+      key: item.key,
+      label: item.label,
+      reason: item.reason,
+      question: item.question,
+    })),
+    message: `Contract understanding is below 100%; run ${workflow} before relying on this ${action}.`,
+  };
+}
+
 export function validateWikiContractShape(contract) {
   const issues = [];
   if (!isPlainObject(contract)) return { ok: false, issues: ['wiki contract must be a JSON object'] };

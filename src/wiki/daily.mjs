@@ -1,6 +1,6 @@
 import { open, readdir, readFile, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
-import { buildWikiStatus } from './contract.mjs';
+import { buildWikiStatus, contractUnderstandingNotice } from './contract.mjs';
 import { frontmatterScalar, redactSensitiveText } from './redaction.mjs';
 import { renderWikiTemplate } from './template.mjs';
 import { assertRawNoteSafety } from './validation.mjs';
@@ -57,6 +57,7 @@ export async function createDailyReport({ config, author, team, date, body = '',
       action: result.action,
       changed: result.changed,
       added: result.added,
+      contractUnderstanding: contractUnderstandingNotice(status, 'daily report write'),
     };
   };
 

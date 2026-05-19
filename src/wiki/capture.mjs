@@ -1,6 +1,6 @@
 import { open, readdir } from 'node:fs/promises';
 import path from 'node:path';
-import { buildWikiStatus } from './contract.mjs';
+import { buildWikiStatus, contractUnderstandingNotice } from './contract.mjs';
 import { frontmatterScalar, redactSensitiveText } from './redaction.mjs';
 import { renderWikiTemplate } from './template.mjs';
 import { assertRawNoteSafety } from './validation.mjs';
@@ -66,6 +66,7 @@ export async function captureRawNote({ config, type = DEFAULT_TYPE, title, body 
     path: notePath,
     type,
     title,
+    contractUnderstanding: contractUnderstandingNotice(status, 'capture write'),
     content: options.includeContent ? note : undefined,
   };
 }

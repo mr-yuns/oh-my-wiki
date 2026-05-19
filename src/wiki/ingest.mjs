@@ -1,6 +1,6 @@
 import { lstat, open, readdir, readFile, realpath } from 'node:fs/promises';
 import path from 'node:path';
-import { buildWikiStatus, loadWikiRuleSummaries } from './contract.mjs';
+import { buildWikiStatus, contractUnderstandingNotice, loadWikiRuleSummaries } from './contract.mjs';
 import { pathExists, writeTextFileAtomic } from '../utils/fs.js';
 import { assertSafeExistingDirectory, assertSafeExistingFile, assertSafeOptionalOwmDirectory, ensureSafeDirectory, isInsidePath } from './safety.mjs';
 
@@ -60,6 +60,7 @@ export async function createIngestPreview({ config, rawRef, options = {} }) {
     title,
     excerpt,
     rules,
+    contractUnderstanding: contractUnderstandingNotice(status, draft.writePerformed || promotion.writePerformed ? 'ingest write' : 'ingest preview'),
     review: {
       source: rawRelativePath,
       promotedWritePerformed: promotion.writePerformed,

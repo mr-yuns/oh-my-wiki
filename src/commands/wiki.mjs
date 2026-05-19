@@ -282,6 +282,18 @@ function renderContractExplanation(explanation) {
   return lines.join('\n');
 }
 
+function renderUnderstandingNotice(notice) {
+  if (!notice?.requiresClarification) return [];
+  const lines = [
+    '',
+    'Contract understanding:',
+    `- score: ${notice.score}%`,
+    `- handoff: ${notice.workflow}`,
+  ];
+  if (notice.prompt) lines.push(`- prompt: ${notice.prompt}`);
+  return lines;
+}
+
 async function wikiDaily({ config, options, stdinText }) {
   const result = await createDailyReport({
     config,
@@ -296,7 +308,8 @@ async function wikiDaily({ config, options, stdinText }) {
   });
   if (options.json || options['dry-run']) return { exitCode: 0, output: `${JSON.stringify(result, null, 2)}\n` };
   const verb = result.action === 'updated' ? 'Updated' : result.action === 'unchanged' ? 'Unchanged' : 'Created';
-  return { exitCode: 0, output: `${verb} daily report Raw: ${result.relativePath}\n` };
+  const lines = [`${verb} daily report Raw: ${result.relativePath}`, ...renderUnderstandingNotice(result.contractUnderstanding)];
+  return { exitCode: 0, output: `${lines.join('\n')}\n` };
 }
 
 async function wikiQueue({ config, options }) {
@@ -340,6 +353,7 @@ async function wikiIngest({ config, options }) {
   if (result.excerpt) {
     lines.push('', 'Raw excerpt:', result.excerpt);
   }
+  lines.push(...renderUnderstandingNotice(result.contractUnderstanding));
   return { exitCode: 0, output: `${lines.join('\n')}\n` };
 }
 
@@ -441,9 +455,10 @@ async function wikiCapture({ config, options, stdinText }) {
       output: `${JSON.stringify(result, null, 2)}\n`,
     };
   }
+  const lines = [`Captured Raw note: ${result.path}`, ...renderUnderstandingNotice(result.contractUnderstanding)];
   return {
     exitCode: 0,
-    output: `Captured Raw note: ${result.path}\n`,
+    output: `${lines.join('\n')}\n`,
   };
 }
 

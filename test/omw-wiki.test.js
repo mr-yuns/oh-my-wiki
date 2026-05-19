@@ -1546,6 +1546,55 @@ test('wiki contract explains partial understanding for unfamiliar personal wikis
   assert.match(textExplanation, /templates \(Capture templates\): partially inferred; user confirmation required/);
   assert.match(textExplanation, /question: Which templates should OMW use/);
 
+  const capture = JSON.parse((await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'capture',
+    '--title',
+    'Partial Contract Capture',
+    '--body',
+    'Capture should surface contract understanding.',
+    '--json',
+  ], { env })).stdout);
+  assert.equal(capture.contractUnderstanding.requiresClarification, true);
+  assert.equal(capture.contractUnderstanding.workflow, 'wiki-deep-interview');
+  assert.match(capture.contractUnderstanding.prompt, /Deep Interview/);
+  assert(capture.contractUnderstanding.missingDimensions.some((item) => item.key === 'rules'));
+
+  const captureText = (await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'capture',
+    '--title',
+    'Partial Contract Text Capture',
+    '--body',
+    'Text output should surface contract understanding.',
+  ], { env })).stdout;
+  assert.match(captureText, /Contract understanding:/);
+  assert.match(captureText, /handoff: wiki-deep-interview/);
+
+  const rawRef = path.relative(wiki, capture.path).split(path.sep).join('/');
+  const ingest = JSON.parse((await execFileAsync(process.execPath, [cliPath, 'wiki', 'ingest', rawRef, '--json'], { env })).stdout);
+  assert.equal(ingest.contractUnderstanding.requiresClarification, true);
+  assert.equal(ingest.contractUnderstanding.workflow, 'wiki-deep-interview');
+
+  const daily = JSON.parse((await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'daily',
+    '--author',
+    'Alex',
+    '--team',
+    'Docs',
+    '--date',
+    '2026-05-19',
+    '--body',
+    'Daily write should surface contract understanding.',
+    '--json',
+  ], { env })).stdout);
+  assert.equal(daily.contractUnderstanding.requiresClarification, true);
+  assert.equal(daily.contractUnderstanding.workflow, 'wiki-deep-interview');
+
   const contract = JSON.parse(await readFile(path.join(wiki, '.omw/contract.json'), 'utf8'));
   assert.equal(contract.understanding.score, explained.understanding.score);
   assert.equal(contract.understanding.policy, 'conservative-adaptation');
