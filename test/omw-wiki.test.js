@@ -113,6 +113,38 @@ test('setup uses the repository base wiki by default', async () => {
   assert.equal(await readFile(path.resolve('.wiki/.omw/contract.json'), 'utf8').then((text) => text.includes('omw-contract-scanner')), true);
 });
 
+test('doctor reports configured wikiPath files as invalid directories', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'omw-config-wiki-file-'));
+  const home = path.join(root, 'state');
+  const wikiFile = path.join(root, 'wiki.md');
+  await mkdir(home, { recursive: true });
+  await writeFile(wikiFile, '# Not A Wiki Directory\n');
+  await writeFile(path.join(home, 'config.json'), `${JSON.stringify({
+    schemaVersion: 1,
+    sourcePath: path.resolve('.'),
+    wikiPath: wikiFile,
+    wikiLanguage: 'en',
+    omxBin: 'omw-definitely-missing-command',
+    omcBin: 'omw-definitely-missing-command',
+  }, null, 2)}\n`);
+
+  await assert.rejects(
+    async () => {
+      try {
+        await execFileAsync(process.execPath, [cliPath, 'doctor', '--json'], {
+          env: { ...process.env, OH_MY_WIKI_HOME: home },
+        });
+      } catch (error) {
+        const report = JSON.parse(error.stdout);
+        assert.equal(report.ok, false);
+        assert(report.issues.some((issue) => issue.includes('wikiPath must be a real directory')));
+        throw error;
+      }
+    },
+    /Command failed/,
+  );
+});
+
 test('init creates an idempotent base wiki without overwriting existing notes', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'omw-init-'));
   const home = path.join(root, 'state');

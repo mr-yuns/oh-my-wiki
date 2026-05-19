@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { lstat } from 'node:fs/promises';
 import { configPath, ensureStateDirs } from '../runtime/state.js';
 import { pathExists, readJsonFile, writeJsonFile } from '../utils/fs.js';
 
@@ -86,8 +87,16 @@ async function validateRequiredDirectory(issues, name, configuredPath) {
     issues.push(`${name} is required. Run \`${SETUP_COMMAND_HINT}\` or set OMW_WIKI_PATH.`);
     return;
   }
-  if (!(await pathExists(configuredPath))) {
+  const entry = await lstat(configuredPath).catch((error) => {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  });
+  if (!entry) {
     issues.push(`${name} does not exist: ${configuredPath}`);
+    return;
+  }
+  if (entry.isSymbolicLink() || !entry.isDirectory()) {
+    issues.push(`${name} must be a real directory: ${configuredPath}`);
   }
 }
 
