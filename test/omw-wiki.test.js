@@ -1710,6 +1710,39 @@ test('wiki ingest refuses symlinked Raw notes before writing review drafts', asy
   await assert.rejects(readFile(path.join(wiki, '.omw', 'ingest-drafts', 'External Link.md'), 'utf8'));
 });
 
+test('wiki queue refuses symlinked Raw roots before listing external notes', async () => {
+  const { root, env, wiki } = await setupIsolatedWiki('omw-queue-raw-root-symlink-', 'en');
+  const rawRoot = path.join(wiki, 'en', '01. Inbox', '01-01. Raw');
+  const external = path.join(root, 'external-raw-root');
+  const externalSession = path.join(external, '01-01-03. Agent Sessions');
+  for (const folder of [
+    '01-01-01. Web Clipper',
+    '01-01-02. Daily Reports',
+    '01-01-03. Agent Sessions',
+    '01-01-04. Discussions',
+  ]) {
+    await mkdir(path.join(external, folder), { recursive: true });
+  }
+  await writeFile(path.join(externalSession, 'external.md'), [
+    '---',
+    'type: Raw',
+    'status: captured',
+    '---',
+    '',
+    '# External Queue Source',
+    '',
+    'external-queue-only-needle',
+    '',
+  ].join('\n'));
+  await rm(rawRoot, { recursive: true, force: true });
+  await symlink(external, rawRoot, 'dir');
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [cliPath, 'wiki', 'queue', '--json'], { env }),
+    /Raw root must be a real directory/i,
+  );
+});
+
 test('wiki ingest refuses symlinked rule notes before reading summaries', async () => {
   const { env, wiki } = await setupIsolatedWiki('omw-ingest-rule-symlink-', 'en');
   await execFileAsync(process.execPath, [

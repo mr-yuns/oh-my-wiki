@@ -9,6 +9,7 @@ const DRAFTS_RELATIVE_ROOT = path.join('.omw', 'ingest-drafts');
 export async function listRawQueue({ config }) {
   const status = await buildWikiStatus(config);
   if (!status.ok) throw new Error(`Wiki is not ready: ${status.issues.join('; ')}`);
+  await assertSafeRawRoot(status);
   const files = await markdownFiles(status.raw.rootPath);
   const items = [];
   const pendingStates = pendingIngestStates(status);
