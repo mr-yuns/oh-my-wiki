@@ -703,6 +703,13 @@ test('scanner routes ambiguous multi-root raw layouts through contract handoff',
   assert.equal(contract.understanding.handoff.workflow, 'wiki-deep-interview');
   assert(contract.understanding.missingDimensions.some((item) => item.key === 'raw'));
   assert.deepEqual(contract.raw.ambiguities.map((item) => item.root).sort(), ['team-a/raw', 'team-b/raw']);
+
+  const explained = JSON.parse((await execFileAsync(process.execPath, [cliPath, 'wiki', 'contract', '--explain', '--json'], { env })).stdout);
+  assert.deepEqual(explained.raw.ambiguities.map((item) => item.root).sort(), ['team-a/raw', 'team-b/raw']);
+  const textExplanation = (await execFileAsync(process.execPath, [cliPath, 'wiki', 'contract', '--explain'], { env })).stdout;
+  assert.match(textExplanation, /raw ambiguities:/);
+  assert.match(textExplanation, /team-a\/raw/);
+  assert.match(textExplanation, /team-b\/raw/);
 });
 
 test('scanner preserves custom contract extensions while regenerating scanner-owned sections', async () => {

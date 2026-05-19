@@ -221,6 +221,7 @@ function explainWikiContract(status) {
     },
     raw: {
       root: status.raw.root || '',
+      ambiguities: contract.raw?.ambiguities || [],
       types: status.raw.types.map((type) => ({
         key: type.key,
         folder: type.folder,
@@ -252,8 +253,15 @@ function renderContractExplanation(explanation) {
     `- search root: ${explanation.search.root}`,
     `- search excludes: ${explanation.search.excludes.join(', ') || '(none)'}`,
     `- raw root: ${explanation.raw.root || '(missing)'}`,
-    '- raw types:',
   ];
+  if (explanation.raw.ambiguities?.length > 0) {
+    lines.push('- raw ambiguities:');
+    for (const item of explanation.raw.ambiguities) {
+      const score = Number.isInteger(item.score) ? ` score=${item.score}` : '';
+      lines.push(`  - ${item.root}${score}`);
+    }
+  }
+  lines.push('- raw types:');
   for (const type of explanation.raw.types) {
     lines.push(`  - ${type.key}: ${type.folder || '(missing)'} via ${type.template || '(missing template)'}`);
   }
