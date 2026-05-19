@@ -366,9 +366,20 @@ async function resolvePromotionTarget(status, targetRef) {
 async function ensurePromotionParent(status, targetPath) {
   await assertSafeExistingDirectory(status, status.wikiPath, 'wiki root');
   const parent = path.dirname(targetPath);
+  await assertSafeExistingPromotionAncestor(status, parent);
   await mkdir(parent, { recursive: true });
   await assertSafeExistingDirectory(status, parent, 'promotion target directory');
   return Promise.all([realpath(status.wikiPath), realpath(parent)]);
+}
+
+async function assertSafeExistingPromotionAncestor(status, parent) {
+  let current = parent;
+  while (!(await pathExists(current))) {
+    const next = path.dirname(current);
+    if (next === current) break;
+    current = next;
+  }
+  await assertSafeExistingDirectory(status, current, 'promotion target ancestor');
 }
 
 async function writePromotionFile({ targetPath, content, overwrite, relativePath }) {

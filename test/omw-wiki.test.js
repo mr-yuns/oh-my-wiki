@@ -1862,6 +1862,40 @@ test('wiki ingest promotes to an explicit durable target and updates raw state',
   );
 });
 
+test('wiki ingest refuses promotion through symlinked parent directories before mkdir', async () => {
+  const { root, env, wiki } = await setupIsolatedWiki('omw-ingest-promote-parent-symlink-', 'en');
+  const external = path.join(root, 'external-promote-parent');
+  await mkdir(external, { recursive: true });
+  await symlink(external, path.join(wiki, 'linked-promotions'), 'dir');
+
+  await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'capture',
+    '--title',
+    'Parent Symlink Source',
+    '--body',
+    'Parent symlink raw body.',
+  ], { env });
+  const queue = JSON.parse((await execFileAsync(process.execPath, [cliPath, 'wiki', 'queue', '--json'], { env })).stdout);
+  const rawRef = queue.items[0].relativePath;
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      cliPath,
+      'wiki',
+      'ingest',
+      rawRef,
+      '--promote',
+      '--target',
+      'linked-promotions/nested/promoted.md',
+      '--json',
+    ], { env }),
+    /promotion target ancestor must be a real directory/,
+  );
+  assert.equal((await readdir(external)).length, 0);
+});
+
 test('wiki ingest refuses symlinked review draft targets', async () => {
   const { env, wiki } = await setupIsolatedWiki('omw-ingest-draft-symlink-', 'en');
   await execFileAsync(process.execPath, [
