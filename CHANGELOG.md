@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.3.3
+
+- Improve scan search fallback so multi-word queries can match separated terms
+  while preserving Raw-note exclusions.
+
 ## 0.3.2
 
 - Align release and branch documentation with the current npm-published project

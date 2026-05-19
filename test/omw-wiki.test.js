@@ -450,6 +450,61 @@ test('wiki search accepts contract ranking overrides and rejects invalid keys', 
   );
 });
 
+test('scan search matches separated query terms and preserves raw exclusions', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'omw-search-scan-terms-'));
+  const home = path.join(root, 'state');
+  const wiki = path.join(root, 'wiki');
+  await mkdir(path.join(wiki, 'notes'), { recursive: true });
+  await mkdir(path.join(wiki, 'raw/sessions'), { recursive: true });
+  await writeFile(path.join(wiki, 'notes/multi-term.md'), '# Searchable Planning\n\nAlpha notes include a separate beta decision later.\n');
+  await writeFile(path.join(wiki, 'notes/partial.md'), '# Alpha Only\n\nThis note intentionally lacks the other term.\n');
+  await writeFile(path.join(wiki, 'raw/sessions/raw.md'), [
+    '---',
+    'type: Raw',
+    'rawType: agent_session',
+    'ingestState: captured',
+    '---',
+    '# Raw Terms',
+    '',
+    'alpha beta raw queue text',
+    '',
+  ].join('\n'));
+
+  const env = { ...process.env, OH_MY_WIKI_HOME: home };
+  await execFileAsync(process.execPath, [
+    cliPath,
+    'setup',
+    '--wiki',
+    wiki,
+    '--language',
+    'en',
+    '--no-hooks',
+    '--codex-home',
+    path.join(root, 'codex'),
+    '--claude-home',
+    path.join(root, 'claude'),
+    '--omx-bin',
+    'omw-definitely-missing-command',
+    '--omc-bin',
+    'omw-definitely-missing-command',
+  ], { env });
+
+  const search = JSON.parse((await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'search',
+    'alpha beta',
+    '--backend',
+    'scan',
+    '--json',
+  ], { env })).stdout);
+  assert.equal(search.ok, true);
+  assert.equal(search.backend, 'scan');
+  assert(search.results.some((item) => item.relativePath === 'notes/multi-term.md'));
+  assert(search.results.every((item) => item.relativePath !== 'notes/partial.md'));
+  assert(search.results.every((item) => !item.relativePath.startsWith('raw/')));
+});
+
 test('sqlite search keeps legacy default ranking unless contract overrides it', async () => {
   const { wiki, env } = await setupIsolatedWiki('omw-search-sqlite-ranking-', 'en');
   const sqliteSearch = await execFileAsync(process.execPath, [cliPath, 'wiki', 'search', 'Knowledge Map', '--json', '--backend', 'sqlite'], { env }).catch((error) => {
