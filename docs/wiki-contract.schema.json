@@ -38,6 +38,33 @@
     "capabilities": {
       "type": "object"
     },
+    "understanding": {
+      "type": "object",
+      "required": ["score", "complete"],
+      "properties": {
+        "score": { "type": "integer", "minimum": 0, "maximum": 100 },
+        "complete": { "type": "boolean" },
+        "policy": { "type": "string" },
+        "dimensions": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "missingDimensions": {
+          "type": "array",
+          "items": { "type": "object" }
+        },
+        "handoff": {
+          "type": "object",
+          "properties": {
+            "recommended": { "type": "boolean" },
+            "workflow": { "type": ["string", "null"] },
+            "prompt": { "type": "string" }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
     "rules": {
       "type": "object",
       "additionalProperties": {

@@ -65,6 +65,7 @@ Top-level fields:
 | `wikiName` | Basename of the connected wiki path. |
 | `source` | Detected layout profile, confidence, and signals. |
 | `scanner` | Scanner metadata, selected roots, and fallbacks. |
+| `understanding` | OMW's 0-100 confidence that the active wiki structure is fully understood. |
 | `capabilities` | Readiness summary for major OMW workflows. |
 | `frontmatter` | Detected key names for type, raw type, state, target, and sensitivity fields. |
 | `rules` | Operating rule note paths. |
@@ -85,6 +86,19 @@ Top-level fields:
 
 The main capability keys are `search`, `capture`, `queue`, `ingest`, `daily`,
 `rules`, and `templates`.
+
+## Understanding Score
+
+`understanding` is the safety gate for unfamiliar personal wikis. It records a
+0-100 score, the scored dimensions, missing dimensions, and a handoff hint when
+OMW inferred part of the structure instead of detecting it directly.
+
+The score is complete only at `100`. Anything lower means OMW can continue with
+conservative behavior, but write-oriented wiki workflows should first run a
+Wiki-specific Deep Interview to confirm the missing structure. The interview is
+expected to fill the contract dimensions that are not fully detected, such as
+Raw folders, capture templates, ingest rules, daily-report structure, search
+scope, and operating-rule notes.
 
 ## Raw Section
 
@@ -178,7 +192,8 @@ The scanner owns these top-level fields:
 
 ```text
 schemaVersion, generatedBy, generatedAt, defaultLanguage, language, wikiName,
-source, scanner, capabilities, frontmatter, rules, raw, ingest, search, daily
+source, scanner, understanding, capabilities, frontmatter, rules, raw, ingest,
+search, daily
 ```
 
 Custom top-level keys outside that set are preserved. For custom Raw behavior,

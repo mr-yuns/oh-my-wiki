@@ -55,6 +55,24 @@ async function setupIsolatedWiki(prefix, language = 'en', options = {}) {
   return { root, home, wiki, env: { ...process.env, OH_MY_WIKI_HOME: home } };
 }
 
+async function snapshotUserMarkdown(root, relativeDir = '') {
+  const absoluteDir = path.join(root, relativeDir);
+  const entries = await readdir(absoluteDir, { withFileTypes: true });
+  const snapshot = {};
+  for (const entry of entries) {
+    const relativePath = path.join(relativeDir, entry.name);
+    if (relativePath === '.omw' || relativePath.startsWith(`${path.sep}.omw${path.sep}`)) continue;
+    if (entry.isDirectory()) {
+      Object.assign(snapshot, await snapshotUserMarkdown(root, relativePath));
+      continue;
+    }
+    if (entry.isFile() && /\.mdx?$/i.test(entry.name)) {
+      snapshot[relativePath.split(path.sep).join('/')] = await readFile(path.join(root, relativePath), 'utf8');
+    }
+  }
+  return snapshot;
+}
+
 test('setup uses the repository base wiki by default', async () => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'omw-setup-'));
   const home = path.join(root, 'state');
@@ -617,6 +635,9 @@ test('wiki contract explain summarizes contract shape and schema is valid JSON',
   assert.equal(explained.language, 'en');
   assert.equal(explained.search.root, 'en');
   assert(explained.raw.types.some((type) => type.key === 'agent_session'));
+  assert.equal(explained.understanding.score, 100);
+  assert.equal(explained.understanding.complete, true);
+  assert.equal(explained.understanding.handoff.recommended, false);
 
   const valid = JSON.parse((await execFileAsync(process.execPath, [
     cliPath,
@@ -648,7 +669,66 @@ test('wiki contract explain summarizes contract shape and schema is valid JSON',
   const schema = JSON.parse(await readFile('docs/wiki-contract.schema.json', 'utf8'));
   assert.equal(schema.title, 'Oh My Wiki Contract');
   assert(schema.required.includes('raw'));
+  assert.equal(schema.properties.understanding.properties.score.maximum, 100);
   assert(schema.properties.search.required.includes('excludeDirs'));
+});
+
+test('wiki contract explains partial understanding for unfamiliar personal wikis', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'omw-contract-understanding-'));
+  const home = path.join(root, 'state');
+  const wiki = path.join(root, 'wiki');
+  const env = { ...process.env, OH_MY_WIKI_HOME: home };
+  await mkdir(path.join(wiki, 'notes'), { recursive: true });
+  await writeFile(path.join(wiki, 'notes/alpha.md'), '# Alpha\n\nA personal wiki note.\n');
+
+  await execFileAsync(process.execPath, [cliPath, 'init', '--wiki', wiki, '--json'], { env });
+  const explained = JSON.parse((await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'contract',
+    '--explain',
+    '--json',
+  ], { env })).stdout);
+
+  assert.equal(explained.ok, true);
+  assert.equal(explained.profile, 'generic-markdown');
+  assert(explained.understanding.score > 0);
+  assert(explained.understanding.score < 100);
+  assert.equal(explained.understanding.complete, false);
+  assert.equal(explained.understanding.handoff.recommended, true);
+  assert.equal(explained.understanding.handoff.workflow, 'wiki-deep-interview');
+  assert(explained.understanding.missingDimensions.some((item) => item.key === 'rules'));
+  assert(explained.understanding.missingDimensions.some((item) => item.key === 'templates'));
+  assert.match(explained.understanding.handoff.prompt, /Deep Interview/);
+
+  const contract = JSON.parse(await readFile(path.join(wiki, '.omw/contract.json'), 'utf8'));
+  assert.equal(contract.understanding.score, explained.understanding.score);
+  assert.equal(contract.understanding.policy, 'conservative-adaptation');
+});
+
+test('read-only wiki commands do not mutate connected personal wiki markdown', async () => {
+  const root = await mkdtemp(path.join(os.tmpdir(), 'omw-personal-readonly-'));
+  const home = path.join(root, 'state');
+  const wiki = path.join(root, 'wiki');
+  const env = { ...process.env, OH_MY_WIKI_HOME: home };
+  await mkdir(path.join(wiki, 'notes'), { recursive: true });
+  await writeFile(path.join(wiki, 'notes/alpha.md'), '# Alpha\n\nSearchable personal wiki note.\n');
+  await writeFile(path.join(wiki, 'notes/beta.md'), '# Beta\n\nAnother personal note.\n');
+  await execFileAsync(process.execPath, [cliPath, 'init', '--wiki', wiki, '--json'], { env });
+
+  const before = await snapshotUserMarkdown(wiki);
+  const commands = [
+    ['wiki', 'status', '--json'],
+    ['wiki', 'contract', '--explain', '--json'],
+    ['wiki', 'contract', '--validate', '--json'],
+    ['wiki', 'validate', '--json'],
+    ['wiki', 'search', 'personal', '--json', '--backend', 'scan'],
+    ['wiki', 'refresh', '--target', 'contract', '--dry-run', '--json'],
+  ];
+  for (const command of commands) {
+    await execFileAsync(process.execPath, [cliPath, ...command], { env });
+  }
+  assert.deepEqual(await snapshotUserMarkdown(wiki), before);
 });
 
 test('wiki contract refresh dry-run previews scanner changes without writing', async () => {

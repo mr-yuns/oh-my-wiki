@@ -125,7 +125,7 @@ export async function buildWikiStatus(config) {
       else if (!rule.exists) issues.push(`wiki rule note does not exist (${rule.key}): ${rule.path}`);
     }
   }
-  return { ...status, ok: issues.length === 0, language, capabilities: status.contract?.capabilities || {}, search: { ...(status.contract?.search || {}), root: searchRoot, rootPath: searchRootPath, rootExists: searchRootExists }, raw: { root: rawRoot, rootPath: rawRootPath, rootExists: rawRootExists, types }, rules, issues };
+  return { ...status, ok: issues.length === 0, language, understanding: status.contract?.understanding || null, capabilities: status.contract?.capabilities || {}, search: { ...(status.contract?.search || {}), root: searchRoot, rootPath: searchRootPath, rootExists: searchRootExists }, raw: { root: rawRoot, rootPath: rawRootPath, rootExists: rawRootExists, types }, rules, issues };
 }
 
 export async function loadWikiRuleSummaries(status, keys = []) {
@@ -186,7 +186,27 @@ export function validateWikiContractShape(contract) {
       }
     }
   }
+  if (Object.hasOwn(contract, 'understanding')) validateUnderstanding(contract.understanding, issues);
   return { ok: issues.length === 0, issues };
+}
+
+function validateUnderstanding(value, issues) {
+  if (!isPlainObject(value)) {
+    issues.push('understanding must be an object');
+    return;
+  }
+  if (!Number.isInteger(value.score) || value.score < 0 || value.score > 100) {
+    issues.push('understanding.score must be an integer between 0 and 100');
+  }
+  if (Object.hasOwn(value, 'complete') && typeof value.complete !== 'boolean') {
+    issues.push('understanding.complete must be a boolean');
+  }
+  if (Object.hasOwn(value, 'missingDimensions') && !Array.isArray(value.missingDimensions)) {
+    issues.push('understanding.missingDimensions must be an array');
+  }
+  if (Object.hasOwn(value, 'dimensions') && !Array.isArray(value.dimensions)) {
+    issues.push('understanding.dimensions must be an array');
+  }
 }
 
 function requireIntegerEnum(object, key, values, issues, label = key) {
@@ -299,7 +319,7 @@ function scannerOwnedRawTypeNames() {
 }
 
 function scannerOwnedTopLevelKeys() {
-  return new Set(['schemaVersion', 'generatedBy', 'generatedAt', 'defaultLanguage', 'language', 'wikiName', 'source', 'scanner', 'capabilities', 'frontmatter', 'rules', 'raw', 'ingest', 'search', 'daily']);
+  return new Set(['schemaVersion', 'generatedBy', 'generatedAt', 'defaultLanguage', 'language', 'wikiName', 'source', 'scanner', 'understanding', 'capabilities', 'frontmatter', 'rules', 'raw', 'ingest', 'search', 'daily']);
 }
 
 function scannerOwnedRawKeys() {

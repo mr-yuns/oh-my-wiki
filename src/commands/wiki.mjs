@@ -231,6 +231,12 @@ function explainWikiContract(status) {
       pendingStates: contract.ingest?.pendingStates || contract.raw?.ingestStates || [],
       approvalRequiredForPromotedNotes: contract.ingest?.approvalRequiredForPromotedNotes !== false,
     },
+    understanding: contract.understanding || {
+      score: 0,
+      complete: false,
+      missingDimensions: [],
+      handoff: { recommended: true, workflow: 'wiki-deep-interview', prompt: 'Refresh the wiki contract before write-oriented wiki workflows.' },
+    },
     capabilities: contract.capabilities || {},
     issues: status.issues || [],
   };
@@ -253,6 +259,12 @@ function renderContractExplanation(explanation) {
   }
   lines.push(`- ingest pending states: ${explanation.ingest.pendingStates.join(', ') || '(none)'}`);
   lines.push(`- promoted-note approval: ${explanation.ingest.approvalRequiredForPromotedNotes ? 'required' : 'not required'}`);
+  lines.push(`- understanding: ${explanation.understanding.score}%${explanation.understanding.complete ? ' complete' : ' incomplete'}`);
+  if (explanation.understanding.handoff?.recommended) {
+    lines.push(`- handoff: ${explanation.understanding.handoff.workflow || 'wiki-deep-interview'}`);
+    const missing = (explanation.understanding.missingDimensions || []).map((item) => item.key).join(', ');
+    if (missing) lines.push(`- missing dimensions: ${missing}`);
+  }
   if (explanation.issues.length > 0) {
     lines.push('', 'Issues:');
     for (const issue of explanation.issues) lines.push(`- ${issue}`);

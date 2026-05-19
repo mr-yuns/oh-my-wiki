@@ -21,6 +21,7 @@ export async function scanWikiContract(wikiPath, options = {}) {
   const daily = detectDaily(templates.daily_report, language);
   const frontmatter = detectFrontmatter(files);
   const capabilities = evaluateCapabilities({ files, raw, rules, daily, templates, search });
+  const understanding = evaluateUnderstanding({ profile, raw, rules, daily, templates, search, capabilities });
 
   return {
     schemaVersion: 2,
@@ -44,6 +45,7 @@ export async function scanWikiContract(wikiPath, options = {}) {
       },
       fallbacksApplied: raw.fallbacksApplied,
     },
+    understanding,
     capabilities,
     frontmatter,
     rules,
@@ -577,6 +579,138 @@ function evaluateCapabilities({ files, raw, rules, daily, templates, search }) {
     rules: { ready: Object.keys(rules).length > 0, mode: Object.keys(rules).length > 0 ? 'detected' : 'missing', issues: Object.keys(rules).length > 0 ? [] : ['No operating rule documents were detected'] },
     templates: { ready: captureReady, mode: Object.keys(templates).length > 0 ? 'detected' : 'generated-fallback', issues: [] },
   };
+}
+
+function evaluateUnderstanding({ profile, raw, rules, daily, templates, search, capabilities }) {
+  const fallbackSet = new Set(raw.fallbacksApplied || []);
+  const rawFallbacksApplied = hasRawFallbacks(fallbackSet);
+  const templateFallbacksApplied = hasTemplateFallbacks(fallbackSet);
+  const hasRawTypes = raw.root && Object.keys(raw.types || {}).length > 0;
+  const templatesReady = Boolean(capabilities.templates?.ready);
+  const dimensions = [
+    scoreDimension({
+      key: 'profile',
+      label: 'Wiki layout profile',
+      weight: 15,
+      score: profile.confidence === 'high' ? 15 : profile.confidence === 'medium' ? 8 : 0,
+      ready: profile.confidence === 'high',
+      evidence: profile.signals,
+      question: 'Which note layout, root folders, and durable-note areas should OMW treat as canonical?',
+    }),
+    scoreDimension({
+      key: 'search',
+      label: 'Search scope',
+      weight: 15,
+      score: capabilities.search?.ready ? 15 : 0,
+      ready: Boolean(capabilities.search?.ready),
+      evidence: [search.root ? `root:${search.root}` : 'root:.', ...(search.excludeDirs || []).map((dir) => `exclude:${dir}`)],
+      question: 'Which folders should OMW search, exclude, and rank as durable knowledge?',
+    }),
+    scoreDimension({
+      key: 'raw',
+      label: 'Raw capture area',
+      weight: 15,
+      score: hasRawTypes ? rawFallbacksApplied ? 8 : 15 : 0,
+      ready: Boolean(hasRawTypes && !rawFallbacksApplied),
+      evidence: [raw.root ? `root:${raw.root}` : '', ...Object.entries(raw.types || {}).map(([key, type]) => `${key}:${type.folder}`)].filter(Boolean),
+      question: 'Where do captured Raw notes belong, and which folders map to each Raw type?',
+    }),
+    scoreDimension({
+      key: 'templates',
+      label: 'Capture templates',
+      weight: 15,
+      score: templatesReady ? templateFallbacksApplied ? 8 : 15 : 0,
+      ready: Boolean(templatesReady && !templateFallbacksApplied),
+      evidence: Object.keys(templates || {}),
+      question: 'Which templates should OMW use for daily reports, agent sessions, and discussions?',
+    }),
+    scoreDimension({
+      key: 'queue',
+      label: 'Raw queue states',
+      weight: 10,
+      score: capabilities.queue?.ready ? 10 : 0,
+      ready: Boolean(capabilities.queue?.ready),
+      evidence: raw.pendingStates || [],
+      question: 'Which frontmatter states mean a Raw note is waiting for review?',
+    }),
+    scoreDimension({
+      key: 'ingest',
+      label: 'Ingest operating rules',
+      weight: 10,
+      score: capabilities.ingest?.mode === 'rules-backed' ? 10 : capabilities.ingest?.ready ? 5 : 0,
+      ready: capabilities.ingest?.mode === 'rules-backed',
+      evidence: Object.keys(rules || {}),
+      question: 'Which operating rules should OMW show before promoting Raw notes into durable notes?',
+    }),
+    scoreDimension({
+      key: 'daily',
+      label: 'Daily report structure',
+      weight: 10,
+      score: capabilities.daily?.mode === 'detected' ? 10 : capabilities.daily?.ready ? 5 : 0,
+      ready: capabilities.daily?.mode === 'detected',
+      evidence: (daily.sections || []).map((section) => section.key),
+      question: 'What sections and naming pattern should daily reports use?',
+    }),
+    scoreDimension({
+      key: 'rules',
+      label: 'Wiki operating rules',
+      weight: 10,
+      score: capabilities.rules?.ready ? 10 : 0,
+      ready: Boolean(capabilities.rules?.ready),
+      evidence: Object.keys(rules || {}),
+      question: 'Where are the wiki operating rules, note-writing rules, and knowledge-map rules documented?',
+    }),
+  ];
+  const score = Math.max(0, Math.min(100, dimensions.reduce((sum, item) => sum + item.score, 0)));
+  const missingDimensions = dimensions
+    .filter((item) => !item.ready)
+    .map((item) => ({
+      key: item.key,
+      label: item.label,
+      weight: item.weight,
+      currentScore: item.score,
+      reason: item.reason,
+      question: item.question,
+    }));
+  return {
+    score,
+    complete: score === 100,
+    policy: 'conservative-adaptation',
+    dimensions,
+    missingDimensions,
+    handoff: {
+      recommended: score < 100,
+      workflow: score < 100 ? 'wiki-deep-interview' : null,
+      prompt: score < 100
+        ? 'Run a Wiki-specific Deep Interview before write-oriented wiki workflows so OMW can raise this contract understanding score to 100%.'
+        : '',
+    },
+  };
+}
+
+function scoreDimension({ key, label, weight, score, ready, evidence, question }) {
+  const boundedScore = Math.max(0, Math.min(weight, score));
+  let reason = 'not detected';
+  if (boundedScore === weight) reason = 'fully detected';
+  else if (boundedScore > 0) reason = 'partially inferred; user confirmation required';
+  return {
+    key,
+    label,
+    weight,
+    score: boundedScore,
+    ready: Boolean(ready),
+    evidence: Array.isArray(evidence) ? evidence.filter(Boolean) : [],
+    reason,
+    question,
+  };
+}
+
+function hasRawFallbacks(fallbackSet) {
+  return fallbackSet.has('root:.omw/raw') || [...fallbackSet].some((item) => item.startsWith('folder:'));
+}
+
+function hasTemplateFallbacks(fallbackSet) {
+  return [...fallbackSet].some((item) => item.startsWith('template:'));
 }
 
 function topLevelDirs(files, directories = []) {
