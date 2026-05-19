@@ -16,6 +16,7 @@ export const DEFAULT_SQLITE_SEARCH_RANKING = Object.freeze({
   ...DEFAULT_SEARCH_RANKING,
   title: 8,
 });
+export const DEFAULT_EXCERPT_VISIBLE_LIMIT = 240;
 
 export function normalizeSearchRanking(input = {}, defaults = DEFAULT_SEARCH_RANKING) {
   const ranking = { ...defaults };
@@ -113,7 +114,7 @@ export function excerptForTerms(text, terms) {
   if (index === -1) return '';
   const start = Math.max(0, index - 80);
   const end = Math.min(text.length, index + length + 160);
-  return text.slice(start, end).replace(/\s+/g, ' ').trim();
+  return text.slice(start, end).replace(/\s+/g, ' ').trim().slice(0, DEFAULT_EXCERPT_VISIBLE_LIMIT);
 }
 
 export function queryTerms(query) {
