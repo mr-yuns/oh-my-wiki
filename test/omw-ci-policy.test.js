@@ -20,6 +20,13 @@ test('CI docs-only policy includes all public documentation files consistently',
   }
 });
 
+test('npm package keeps docs but excludes heavyweight documentation assets', async () => {
+  const pkg = JSON.parse(await readFile('package.json', 'utf8'));
+  assert(pkg.files.includes('docs/*.md'));
+  assert(pkg.files.includes('docs/*.json'));
+  assert(!pkg.files.includes('docs/'));
+});
+
 test('CI commit policy scopes new branch pushes to default-branch merge-base', async () => {
   const workflow = await readFile('.github/workflows/ci.yml', 'utf8');
   assert.match(workflow, /DEFAULT_BRANCH: \$\{\{ github\.event\.repository\.default_branch \}\}/);

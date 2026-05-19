@@ -97,19 +97,19 @@ export async function handleCodexHook(eventName, stdinText) {
     payloadKeys: Object.keys(payload).sort(),
     cwd: payload.cwd || process.cwd(),
   };
+  eventRecord.capture = await captureHookRawBestEffort(eventName, eventRecord, payload, 'codex-app');
   const eventWrite = await recordEventBestEffort(eventName, eventRecord);
-  await captureHookRawBestEffort(eventName, eventRecord, payload, 'codex-app');
   return buildRuntimeContextOutput(eventName, eventWrite);
 }
 
 async function captureHookRawBestEffort(eventName, eventRecord, payload, platform) {
-  if (eventName !== 'Stop') return;
+  if (eventName !== 'Stop') return { attempted: false, ok: true, reason: 'event-not-captured' };
   try {
     const config = await readConfig();
-    if (!config?.wikiAutoCapture) return;
+    if (!config?.wikiAutoCapture) return { attempted: false, ok: true, reason: 'auto-capture-disabled' };
     const workspace = eventRecord.cwd?.split('/').filter(Boolean).at(-1) || 'workspace';
     const captureText = hookCaptureText(config?.wikiLanguage, { eventName, payload, workspace });
-    await captureRawNote({
+    const captured = await captureRawNote({
       config,
       type: 'agent_session',
       title: captureText.title,
@@ -119,8 +119,10 @@ async function captureHookRawBestEffort(eventName, eventRecord, payload, platfor
         workspace,
       },
     });
-  } catch {
+    return { attempted: true, ok: true, path: captured.path, type: captured.type };
+  } catch (error) {
     // Hook capture is deliberately best-effort and must never block the platform session.
+    return { attempted: true, ok: false, error: error instanceof Error ? error.message : String(error) };
   }
 }
 

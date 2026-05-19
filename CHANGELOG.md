@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.0
+
+- Add explicit ingest promotion to a user-selected durable Markdown target.
+- Record hook auto-capture success or failure details in event logs.
+- Harden Raw-note redaction for JWTs, bearer tokens, GitHub tokens, private
+  keys, and signed URL query secrets.
+- Add contract explanation output and a public contract JSON Schema.
+- Improve wiki command help and reduce npm package size by excluding
+  heavyweight documentation image assets.
+
 ## 0.3.3
 
 - Improve scan search fallback so multi-word queries can match separated terms

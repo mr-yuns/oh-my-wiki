@@ -1,5 +1,5 @@
 import { execFile, spawn } from 'node:child_process';
-import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -211,11 +211,29 @@ test('wiki capture writes a redacted raw note', async () => {
     '--title',
     'Generic session',
     '--body',
-    'token: secret-value session_id: abc123 /Users/example/private',
+    [
+      'token: secret-value session_id: abc123 /Users/example/private',
+      'Authorization: Bearer header.payload.signature',
+      'github token ghp_abcdefghijklmnopqrstuvwxyz123456',
+      'jwt abcdefghijklmnopqrstuvwxyz.abcdefghijklmnopqrstuvwxyz.abcdefghijklmnopqrstuvwxyz',
+      'signed https://example.com/file?X-Amz-Signature=abc123&token=secret',
+      '-----BEGIN PRIVATE KEY-----',
+      'secret-key-material',
+      '-----END PRIVATE KEY-----',
+    ].join('\n'),
+    '--json',
   ], {
     env: { ...process.env, OH_MY_WIKI_HOME: home },
   });
-  assert.match(result.stdout, /Captured Raw note/);
+  const captured = JSON.parse(result.stdout);
+  const note = await readFile(captured.path, 'utf8');
+  assert.match(note, /\[REDACTED\]/);
+  assert.match(note, /\[REDACTED_SESSION\]/);
+  assert.match(note, /\[REDACTED_LOCAL_PATH\]/);
+  assert.match(note, /\[REDACTED_PRIVATE_KEY\]/);
+  assert.match(note, /\[REDACTED_GITHUB_TOKEN\]/);
+  assert.match(note, /\[REDACTED_JWT\]/);
+  assert.doesNotMatch(note, /secret-value|abc123|ghp_|secret-key-material|header\.payload\.signature/);
 });
 
 test('wiki capture and queue work for English and Korean base wikis', async () => {
@@ -448,6 +466,27 @@ test('wiki search accepts contract ranking overrides and rejects invalid keys', 
     execFileAsync(process.execPath, [cliPath, 'wiki', 'refresh', '--target', 'index'], { env }),
     /must be a non-negative number/,
   );
+});
+
+test('wiki contract explain summarizes contract shape and schema is valid JSON', async () => {
+  const { env } = await setupIsolatedWiki('omw-contract-explain-', 'en');
+  const explained = JSON.parse((await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'contract',
+    '--explain',
+    '--json',
+  ], { env })).stdout);
+  assert.equal(explained.ok, true);
+  assert.equal(explained.schemaVersion, 2);
+  assert.equal(explained.language, 'en');
+  assert.equal(explained.search.root, 'en');
+  assert(explained.raw.types.some((type) => type.key === 'agent_session'));
+
+  const schema = JSON.parse(await readFile('docs/wiki-contract.schema.json', 'utf8'));
+  assert.equal(schema.title, 'Oh My Wiki Contract');
+  assert(schema.required.includes('raw'));
+  assert(schema.properties.search.required.includes('excludeDirs'));
 });
 
 test('scan search matches separated query terms and preserves raw exclusions', async () => {
@@ -761,6 +800,68 @@ test('wiki ingest writes review drafts only with explicit opt-in', async () => {
   );
 });
 
+test('wiki ingest promotes to an explicit durable target and updates raw state', async () => {
+  const { env, wiki } = await setupIsolatedWiki('omw-ingest-promote-', 'en');
+  await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'capture',
+    '--title',
+    'Promotable Source',
+    '--body',
+    'Promotable raw body.',
+  ], { env });
+  const queue = JSON.parse((await execFileAsync(process.execPath, [cliPath, 'wiki', 'queue', '--json'], { env })).stdout);
+  const rawRef = queue.items[0].relativePath;
+
+  const promoted = JSON.parse((await execFileAsync(process.execPath, [
+    cliPath,
+    'wiki',
+    'ingest',
+    rawRef,
+    '--promote',
+    '--target',
+    'en/03. Permanent Notes/promoted-source.md',
+    '--json',
+  ], { env })).stdout);
+  assert.equal(promoted.promotion.writePerformed, true);
+  assert.equal(promoted.promotion.relativePath, 'en/03. Permanent Notes/promoted-source.md');
+  assert.equal(promoted.promotion.rawStateUpdated, true);
+
+  const note = await readFile(path.join(wiki, promoted.promotion.relativePath), 'utf8');
+  assert.match(note, /sourceRaw:/);
+  assert.match(note, /Promotable raw body/);
+  const raw = await readFile(path.join(wiki, rawRef), 'utf8');
+  assert.match(raw, /ingestState: promoted/);
+  const afterQueue = JSON.parse((await execFileAsync(process.execPath, [cliPath, 'wiki', 'queue', '--json'], { env })).stdout);
+  assert.equal(afterQueue.total, 0);
+
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      cliPath,
+      'wiki',
+      'ingest',
+      rawRef,
+      '--promote',
+      '--target',
+      'en/03. Permanent Notes/promoted-source.md',
+    ], { env }),
+    /Use --overwrite-promote/,
+  );
+  await assert.rejects(
+    execFileAsync(process.execPath, [
+      cliPath,
+      'wiki',
+      'ingest',
+      rawRef,
+      '--promote',
+      '--target',
+      '../outside.md',
+    ], { env }),
+    /must stay inside the wiki/,
+  );
+});
+
 test('wiki ingest refuses symlinked review draft targets', async () => {
   const { env, wiki } = await setupIsolatedWiki('omw-ingest-draft-symlink-', 'en');
   await execFileAsync(process.execPath, [
@@ -1038,6 +1139,26 @@ test('hook auto capture writes localized stop-session raw notes', async () => {
       assert.match(note, /플랫폼 작업 종료 시점/);
     }
   }
+});
+
+test('hook auto capture records best-effort capture failures in event logs', async () => {
+  const { env, home } = await setupIsolatedWiki('omw-hook-failure-', 'en', { wikiAutoCapture: true });
+  const configPath = path.join(home, 'config.json');
+  const config = JSON.parse(await readFile(configPath, 'utf8'));
+  config.wikiPath = path.join(path.dirname(config.wikiPath), 'missing-wiki');
+  await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
+
+  await execFileWithInput(process.execPath, [cliPath, 'hook', 'Stop'], {
+    env,
+    input: JSON.stringify({ cwd: '/tmp/workspace-beta', transcript_path: '/tmp/transcript.jsonl' }),
+  });
+
+  const eventFiles = (await readdir(path.join(home, 'events'))).filter((name) => name.endsWith('-Stop.json'));
+  assert.equal(eventFiles.length, 1);
+  const event = JSON.parse(await readFile(path.join(home, 'events', eventFiles[0]), 'utf8'));
+  assert.equal(event.capture.attempted, true);
+  assert.equal(event.capture.ok, false);
+  assert.match(event.capture.error, /Wiki is not ready|wikiPath does not exist/);
 });
 
 

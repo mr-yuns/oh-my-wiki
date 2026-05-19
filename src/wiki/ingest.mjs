@@ -46,11 +46,13 @@ export async function createIngestPreview({ config, rawRef, options = {} }) {
   const excerpt = rawText.replace(/^---[\s\S]*?---\s*/, '').trim().slice(0, 2000);
   const rules = await loadWikiRuleSummaries(status, status.contract?.ingest?.ruleKeys || []);
   const draft = await maybeWriteIngestDraft({ status, rawRelativePath, title, excerpt, rules, options });
+  const promotion = await maybePromoteRawNote({ status, rawPath, rawRelativePath, title, excerpt, rules, options });
   return {
     ok: true,
-    writePerformed: draft.writePerformed,
+    writePerformed: draft.writePerformed || promotion.writePerformed,
     path: draft.path,
     relativePath: draft.relativePath,
+    promotion,
     rawPath,
     rawRelativePath,
     title,
@@ -58,9 +60,11 @@ export async function createIngestPreview({ config, rawRef, options = {} }) {
     rules,
     review: {
       source: rawRelativePath,
-      promotedWritePerformed: false,
+      promotedWritePerformed: promotion.writePerformed,
       draftWritePerformed: draft.writePerformed,
-      instruction: draft.writePerformed
+      instruction: promotion.writePerformed
+        ? `Review promoted note at ${promotion.relativePath}.`
+        : draft.writePerformed
         ? 'Review the draft under .omw/ingest-drafts before manually promoting durable notes.'
         : 'Review the contract.rules operating notes before writing promoted notes.',
     },
@@ -100,6 +104,27 @@ async function maybeWriteIngestDraft({ status, rawRelativePath, title, excerpt, 
     writePerformed: true,
     path: draftPath,
     relativePath: path.relative(status.wikiPath, draftPath),
+  };
+}
+
+async function maybePromoteRawNote({ status, rawPath, rawRelativePath, title, excerpt, rules, options }) {
+  if (!options.promote) return { writePerformed: false, path: null, relativePath: null, rawStateUpdated: false };
+  const targetRef = String(options.target || '').trim();
+  if (!targetRef) throw new Error('wiki ingest --promote requires --target <relative-note-path>');
+  const targetPath = await resolvePromotionTarget(status, targetRef);
+  const content = renderPromotedNote({ rawRelativePath, title, excerpt, rules });
+  await writePromotionFile({
+    targetPath,
+    content,
+    overwrite: Boolean(options.overwritePromote || options['overwrite-promote']),
+    relativePath: path.relative(status.wikiPath, targetPath),
+  });
+  const rawStateUpdated = await updateRawIngestState(rawPath, promotedState(status));
+  return {
+    writePerformed: true,
+    path: targetPath,
+    relativePath: path.relative(status.wikiPath, targetPath),
+    rawStateUpdated,
   };
 }
 
@@ -195,6 +220,36 @@ function renderIngestDraft({ rawRelativePath, title, excerpt, rules }) {
   return `${lines.join('\n')}`;
 }
 
+function renderPromotedNote({ rawRelativePath, title, excerpt, rules }) {
+  const lines = [
+    '---',
+    'type: Note',
+    'status: draft',
+    `sourceRaw: ${JSON.stringify(rawRelativePath)}`,
+    '---',
+    '',
+    `# ${title}`,
+    '',
+    '## Summary',
+    '',
+    '- Curate this promoted note before treating it as stable knowledge.',
+    '',
+    '## Source Raw',
+    '',
+    `- ${rawRelativePath}`,
+    '',
+    '## Extracted Content',
+    '',
+    excerpt || '(empty)',
+  ];
+  if (rules.length > 0) {
+    lines.push('', '## Rule Notes', '');
+    for (const rule of rules) lines.push(`- ${rule.label}: ${rule.path}`);
+  }
+  lines.push('');
+  return lines.join('\n');
+}
+
 function safeFileName(value) {
   return String(value || 'ingest-draft')
     .replace(/[\\/:*?"<>|#\n\r\t]/g, ' ')
@@ -243,6 +298,88 @@ async function resolveRawRef(status, rawRef) {
     }
   }
   throw new Error(`Raw note does not exist: ${rawRef}`);
+}
+
+async function resolvePromotionTarget(status, targetRef) {
+  if (path.isAbsolute(targetRef)) throw new Error('wiki ingest --target must be relative to the wiki root');
+  if (!MARKDOWN_EXTENSIONS.has(path.extname(targetRef).toLowerCase())) {
+    throw new Error('wiki ingest --target must end with .md or .mdx');
+  }
+  const targetPath = path.join(status.wikiPath, targetRef);
+  const relative = path.relative(status.wikiPath, targetPath);
+  if (!isInsidePath(status.wikiPath, targetPath)) throw new Error(`promotion target must stay inside the wiki: ${targetRef}`);
+  if (relative.startsWith('.omw/') || relative === '.omw') throw new Error('wiki ingest --target cannot write under .omw');
+  if (isInsidePath(status.raw.rootPath, targetPath)) throw new Error('wiki ingest --target cannot write under the Raw root');
+  const [wikiRealPath, targetParentRealPath] = await ensurePromotionParent(status, targetPath);
+  if (!isInsidePath(wikiRealPath, targetParentRealPath)) throw new Error(`promotion target must stay inside the wiki: ${relative}`);
+  return targetPath;
+}
+
+async function ensurePromotionParent(status, targetPath) {
+  await assertSafeExistingDirectory(status, status.wikiPath, 'wiki root');
+  const parent = path.dirname(targetPath);
+  await mkdir(parent, { recursive: true });
+  await assertSafeExistingDirectory(status, parent, 'promotion target directory');
+  return Promise.all([realpath(status.wikiPath), realpath(parent)]);
+}
+
+async function writePromotionFile({ targetPath, content, overwrite, relativePath }) {
+  if (!overwrite) {
+    try {
+      const handle = await open(targetPath, 'wx');
+      try {
+        await handle.writeFile(content);
+      } finally {
+        await handle.close();
+      }
+      return;
+    } catch (error) {
+      if (error?.code === 'EEXIST') {
+        throw new Error(`Promoted note already exists: ${relativePath}. Use --overwrite-promote to replace it.`);
+      }
+      throw error;
+    }
+  }
+  const targetStat = await lstat(targetPath).catch((error) => {
+    if (error?.code === 'ENOENT') return null;
+    throw error;
+  });
+  if (targetStat?.isSymbolicLink() || (targetStat && !targetStat.isFile())) {
+    throw new Error(`Promoted note overwrite requires a regular file: ${relativePath}`);
+  }
+  await writeFile(targetPath, content);
+}
+
+async function updateRawIngestState(rawPath, state) {
+  const text = await readFile(rawPath, 'utf8');
+  const next = replaceFrontmatterState(text, state);
+  if (next === text) return false;
+  await writeFile(rawPath, next);
+  return true;
+}
+
+function replaceFrontmatterState(text, state) {
+  return String(text || '').replace(/^---\r?\n([\s\S]*?)\r?\n---/, (match, body) => {
+    const lines = body.split(/\r?\n/);
+    const index = findFrontmatterStateLine(lines);
+    if (index === -1) return match;
+    const key = lines[index].split(':')[0];
+    lines[index] = `${key}: ${state}`;
+    return `---\n${lines.join('\n')}\n---`;
+  });
+}
+
+function findFrontmatterStateLine(lines) {
+  for (const pattern of [/^(ingestState|ingest상태):\s*/, /^(status|상태):\s*/]) {
+    const index = lines.findIndex((line) => pattern.test(line));
+    if (index !== -1) return index;
+  }
+  return -1;
+}
+
+function promotedState(status) {
+  const states = status.contract?.raw?.ingestStates || status.contract?.ingest?.pendingStates || [];
+  return states.find((state) => /promoted|승격/.test(String(state).toLowerCase())) || (status.language === 'ko' ? '승격완료' : 'promoted');
 }
 
 async function assertSafeRawRoot(status) {

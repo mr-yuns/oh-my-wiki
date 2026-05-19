@@ -18,6 +18,13 @@ export function assertRawNoteSafety(note, context = 'Raw note') {
     issues.push('session id must not be stored');
   }
   if (/\/Users\/[^\s)'"`]+|\/private\/[^\s)'"`]+/.test(text)) issues.push('local filesystem paths must be redacted');
+  if (/-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(text)) issues.push('private keys must not be stored');
+  if (/\bgh[pousr]_[A-Za-z0-9_]{20,}\b/.test(text)) issues.push('GitHub tokens must not be stored');
+  if (/\b[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/.test(text)) issues.push('JWTs must not be stored');
+  if (/\bAuthorization:\s*Bearer\s+(?!\[REDACTED\](?:\s|$))[A-Za-z0-9._~+/-]+=*/i.test(text)) issues.push('bearer tokens must not be stored');
+  if (/[?&](?:sig|signature|token|access_token|api_key|X-Amz-Signature)=(?!\[REDACTED\](?:[&\s)'"`]|$))[^&\s)'"`]+/i.test(text)) {
+    issues.push('signed URL query secrets must not be stored');
+  }
   if (issues.length > 0) {
     throw new Error(`${context} breaks wiki operating rules: ${issues.join('; ')}`);
   }

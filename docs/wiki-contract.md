@@ -11,6 +11,11 @@ the CLI where to search, where Raw notes live, which templates should be used,
 which ingest states are pending, and which operating rule notes should be shown
 before a human promotes durable knowledge.
 
+The public JSON Schema for the contract is tracked at
+[`docs/wiki-contract.schema.json`](wiki-contract.schema.json). Use
+`omw wiki contract --explain` for a concise runtime summary of the active
+contract.
+
 ## Lifecycle
 
 `omw setup --wiki <path>` creates the contract when it is missing. `omw wiki

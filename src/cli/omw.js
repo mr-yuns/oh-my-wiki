@@ -38,6 +38,7 @@ async function main(argv) {
   if (command === 'setup') return setup([subcommand, ...rest].filter(Boolean));
   if (command === 'doctor') return doctor([subcommand, ...rest].filter(Boolean));
   if (command === 'paths') return paths();
+  if (command === 'wiki' && (!subcommand || subcommand === '--help' || subcommand === '-h' || subcommand === 'help')) return printWikiHelp();
   if (command === 'wiki') return wiki(subcommand, rest);
   if (command === 'search') return wiki('search', [subcommand, ...rest].filter(Boolean));
   if (command === 'capture') return wiki('capture', [subcommand, ...rest].filter(Boolean));
@@ -314,9 +315,12 @@ Usage:
   omw setup [--wiki <path>] [--language en|ko] [--wiki-auto-capture]
   omw init [--wiki <path>] [--language en|ko] [--json]
   omw doctor [--json]
+  omw wiki --help
   omw wiki init|status|refresh|contract|search|capture|queue|ingest|daily|report-raw-ingest|report-daily|validate
-  omw search "<query>"
+  omw search "<query>" [--backend auto|sqlite|scan]
   omw capture --title "<title>" --stdin
+  omw ingest <raw-note> [--write-draft]
+  omw ingest <raw-note> --promote --target <relative-note.md>
   omw daily --author "<name>" --team "<team>" --date YYYY-MM-DD --stdin
   omw report-raw-ingest [--language en|ko]
   omw report-daily [--language en|ko] [--date YYYY-MM-DD] [--author <name>] [--team <team>]
@@ -329,6 +333,31 @@ Usage:
 Defaults:
   State root: ~/.omw
   Base wiki: repository .wiki unless --wiki is provided
+`);
+  return 0;
+}
+
+function printWikiHelp() {
+  console.log(`omw wiki
+
+Usage:
+  omw wiki status [--json]
+  omw wiki init [--wiki <path>] [--language en|ko] [--json]
+  omw wiki refresh [--target all|contract|index] [--json]
+  omw wiki contract [--refresh] [--explain] [--json]
+  omw wiki search "<query>" [--backend auto|sqlite|scan] [--limit <n>] [--json]
+  omw wiki capture --title "<title>" [--type agent_session|discussion] [--stdin|--body <text>] [--json]
+  omw wiki queue [--json]
+  omw wiki ingest <raw-note> [--write-draft] [--overwrite-draft] [--json]
+  omw wiki ingest <raw-note> --promote --target <relative-note.md> [--overwrite-promote] [--json]
+  omw wiki daily --author <name> --team <team> --date YYYY-MM-DD [--stdin|--body <text>] [--json]
+  omw wiki report-raw-ingest [--language en|ko]
+  omw wiki report-daily [--language en|ko] [--date YYYY-MM-DD] [--author <name>] [--team <team>]
+  omw wiki validate [--json]
+
+Notes:
+  --promote writes only to an explicit wiki-relative Markdown target.
+  --backend scan is the dependency-free fallback; sqlite is used automatically when available.
 `);
   return 0;
 }

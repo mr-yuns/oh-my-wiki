@@ -58,6 +58,10 @@ test('documented demo workflow runs against a disposable base wiki', async () =>
   const status = await execFileAsync(process.execPath, [cliPath, 'wiki', 'status'], { env });
   assert.match(status.stdout, /OMW Wiki status/);
 
+  const wikiHelp = await execFileAsync(process.execPath, [cliPath, 'wiki', '--help'], { env });
+  assert.match(wikiHelp.stdout, /omw wiki ingest <raw-note> --promote --target/);
+  assert.match(wikiHelp.stdout, /--backend auto\|sqlite\|scan/);
+
   const capture = await execFileWithInput(process.execPath, [cliPath, 'capture', '--title', 'Demo session', '--stdin'], {
     env,
     input: 'Captured from the public demo workflow.',
@@ -102,4 +106,3 @@ test('documented demo workflow runs against a disposable base wiki', async () =>
   const validate = await execFileAsync(process.execPath, [cliPath, 'validate'], { env });
   assert.match(validate.stdout, /OK: base wiki validation passed/);
 });
-

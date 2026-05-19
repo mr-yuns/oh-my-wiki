@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/mr-yuns/oh-my-wiki/blob/main/docs/wiki-contract.schema.json",
+  "title": "Oh My Wiki Contract",
+  "type": "object",
+  "required": ["schemaVersion", "generatedBy", "language", "raw", "ingest", "search"],
+  "properties": {
+    "schemaVersion": {
+      "type": "integer",
+      "enum": [1, 2]
+    },
+    "generatedBy": {
+      "type": "string"
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "defaultLanguage": {
+      "type": "string"
+    },
+    "language": {
+      "type": "string"
+    },
+    "wikiName": {
+      "type": "string"
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "profile": { "type": "string" },
+        "confidence": { "type": "string" },
+        "signals": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      }
+    },
+    "capabilities": {
+      "type": "object"
+    },
+    "rules": {
+      "type": "object",
+      "additionalProperties": {
+        "oneOf": [
+          { "type": "string" },
+          {
+            "type": "object",
+            "required": ["path"],
+            "properties": {
+              "label": { "type": "string" },
+              "path": { "type": "string" }
+            },
+            "additionalProperties": true
+          }
+        ]
+      }
+    },
+    "raw": {
+      "type": "object",
+      "required": ["root", "types"],
+      "properties": {
+        "root": { "type": "string" },
+        "noteTypes": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "types": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "required": ["folder"],
+            "properties": {
+              "label": { "type": "string" },
+              "folder": { "type": "string" },
+              "agentTemplate": { "type": "string" },
+              "humanTemplate": { "type": "string" },
+              "template": { "type": "string" },
+              "naming": { "type": "object" }
+            },
+            "additionalProperties": true
+          }
+        },
+        "ingestStates": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "ingest": {
+      "type": "object",
+      "properties": {
+        "pendingStates": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "candidateTargets": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "ruleKeys": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "approvalRequiredForPromotedNotes": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": true
+    },
+    "search": {
+      "type": "object",
+      "required": ["excludeDirs"],
+      "properties": {
+        "root": { "type": "string" },
+        "excludeDirs": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "ranking": {
+          "type": "object",
+          "additionalProperties": { "type": "number", "minimum": 0 }
+        }
+      },
+      "additionalProperties": true
+    },
+    "daily": {
+      "type": "object"
+    }
+  },
+  "additionalProperties": true
+}

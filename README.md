@@ -243,6 +243,7 @@ Ranking weights can be tuned with `search.ranking` in the wiki contract.
 | `omw wiki status [--json]` | Show connected wiki and contract health. |
 | `omw wiki init [--wiki <path>] [--language en|ko]` | Wiki-scoped alias for `omw init`. |
 | `omw wiki contract --refresh` | Regenerate `.omw/contract.json` from the wiki. |
+| `omw wiki contract --explain` | Print a concise summary of the active contract. |
 | `omw wiki refresh [--target all|contract|index]` | Refresh contract and/or search index. |
 | `omw search "<query>"` | Search wiki notes. Alias for `omw wiki search`. |
 | `omw capture --title "<title>" --stdin` | Capture an agent-session Raw note from stdin. |
@@ -250,6 +251,7 @@ Ranking weights can be tuned with `search.ranking` in the wiki contract.
 | `omw ingest <raw-note>` | Build a review-only ingest preview for a Raw note. |
 | `omw ingest <raw-note> --write-draft` | Write a review draft under `.omw/ingest-drafts/`. |
 | `omw ingest <raw-note> --write-draft --overwrite-draft` | Replace an existing review draft; drafts are protected by default. |
+| `omw ingest <raw-note> --promote --target <relative-note.md>` | Write a draft-status durable note to an explicit wiki-relative target and mark the Raw note promoted. |
 | `omw daily --author <name> --team <team> --date YYYY-MM-DD --stdin` | Create or update a daily report Raw note. |
 | `omw report-raw-ingest [--language en|ko]` | Summarize Raw ingest states and targets. |
 | `omw report-daily [--date YYYY-MM-DD] [--author <name>] [--team <team>]` | Summarize daily report Raw notes. |

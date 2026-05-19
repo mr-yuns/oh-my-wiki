@@ -154,6 +154,13 @@ async function wikiContract({ config, options }) {
     }
   }
   const status = await buildWikiStatus(config);
+  if (options.explain) {
+    const explanation = explainWikiContract(status);
+    if (options.json) {
+      return { exitCode: status.ok ? 0 : 1, output: `${JSON.stringify(explanation, null, 2)}\n` };
+    }
+    return { exitCode: status.ok ? 0 : 1, output: `${renderContractExplanation(explanation)}\n` };
+  }
   if (options.json) {
     return { exitCode: status.ok ? 0 : 1, output: `${JSON.stringify({ ...status, refreshed: Boolean(refreshResult?.refreshed) }, null, 2)}\n` };
   }
@@ -168,6 +175,60 @@ async function wikiContract({ config, options }) {
     for (const issue of status.issues) lines.push(`- ${issue}`);
   }
   return { exitCode: status.ok ? 0 : 1, output: `${lines.join('\n')}\n` };
+}
+
+function explainWikiContract(status) {
+  const contract = status.contract || {};
+  return {
+    ok: status.ok,
+    path: status.contractPath,
+    schemaVersion: contract.schemaVersion || null,
+    language: status.language,
+    profile: contract.source?.profile || 'unknown',
+    search: {
+      root: status.search.root || '.',
+      excludes: status.search.excludeDirs || [],
+      backend: 'auto',
+    },
+    raw: {
+      root: status.raw.root || '',
+      types: status.raw.types.map((type) => ({
+        key: type.key,
+        folder: type.folder,
+        template: type.template,
+      })),
+    },
+    ingest: {
+      pendingStates: contract.ingest?.pendingStates || contract.raw?.ingestStates || [],
+      approvalRequiredForPromotedNotes: contract.ingest?.approvalRequiredForPromotedNotes !== false,
+    },
+    capabilities: contract.capabilities || {},
+    issues: status.issues || [],
+  };
+}
+
+function renderContractExplanation(explanation) {
+  const lines = [
+    'OMW Wiki contract explanation',
+    `- path: ${explanation.path || '(missing)'}`,
+    `- schema version: ${explanation.schemaVersion || '(unknown)'}`,
+    `- language: ${explanation.language}`,
+    `- profile: ${explanation.profile}`,
+    `- search root: ${explanation.search.root}`,
+    `- search excludes: ${explanation.search.excludes.join(', ') || '(none)'}`,
+    `- raw root: ${explanation.raw.root || '(missing)'}`,
+    '- raw types:',
+  ];
+  for (const type of explanation.raw.types) {
+    lines.push(`  - ${type.key}: ${type.folder || '(missing)'} via ${type.template || '(missing template)'}`);
+  }
+  lines.push(`- ingest pending states: ${explanation.ingest.pendingStates.join(', ') || '(none)'}`);
+  lines.push(`- promoted-note approval: ${explanation.ingest.approvalRequiredForPromotedNotes ? 'required' : 'not required'}`);
+  if (explanation.issues.length > 0) {
+    lines.push('', 'Issues:');
+    for (const issue of explanation.issues) lines.push(`- ${issue}`);
+  }
+  return lines.join('\n');
 }
 
 async function wikiDaily({ config, options, stdinText }) {
@@ -205,6 +266,9 @@ async function wikiIngest({ config, options }) {
     options: {
       writeDraft: Boolean(options['write-draft']),
       overwriteDraft: Boolean(options['overwrite-draft']),
+      promote: Boolean(options.promote),
+      target: options.target,
+      overwritePromote: Boolean(options['overwrite-promote']),
     },
   });
   if (options.json) return { exitCode: 0, output: `${JSON.stringify(result, null, 2)}\n` };
@@ -214,6 +278,7 @@ async function wikiIngest({ config, options }) {
     `- title: ${result.title}`,
     `- write performed: ${result.writePerformed ? 'yes' : 'no'}`,
     ...(result.relativePath ? [`- draft: ${result.relativePath}`] : []),
+    ...(result.promotion?.relativePath ? [`- promoted: ${result.promotion.relativePath}`] : []),
     `- next: ${result.review.instruction}`,
   ];
   if (result.rules?.length > 0) {
