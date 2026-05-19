@@ -1,8 +1,8 @@
 ---
 name: wiki-search
-description: Search the configured base wiki before answering questions that may depend on existing Markdown knowledge.
+description: Search the configured wiki before answering questions that may depend on existing Markdown knowledge.
 metadata:
-  short-description: Search the configured base wiki before answering questions that may depend on existing Markdown knowledge.
+  short-description: Search the configured wiki before answering questions that may depend on existing Markdown knowledge.
 ---
 
 # Wiki Search

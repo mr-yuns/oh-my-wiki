@@ -91,6 +91,8 @@ test('setup uses the repository base wiki by default', async () => {
     'omw-definitely-missing-command',
   ], { env: { ...process.env, OH_MY_WIKI_HOME: home } });
   assert.match(stdout, /OMW is ready/);
+  assert.match(stdout, /Registered wiki:/);
+  assert.doesNotMatch(stdout, /Registered base wiki:/);
 
   const doctor = await execFileAsync(process.execPath, [cliPath, 'doctor', '--json'], {
     env: { ...process.env, OH_MY_WIKI_HOME: home },

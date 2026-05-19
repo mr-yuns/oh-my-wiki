@@ -1,8 +1,8 @@
 ---
 name: wiki-daily-report
-description: Append or update one daily report Raw note per author/date in the configured base wiki.
+description: Append or update one daily report Raw note per author/date in the configured wiki.
 metadata:
-  short-description: Append or update one daily report Raw note per author/date in the configured base wiki.
+  short-description: Append or update one daily report Raw note per author/date in the configured wiki.
 ---
 
 # Wiki Daily Report

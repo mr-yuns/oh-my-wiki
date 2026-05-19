@@ -86,7 +86,7 @@ async function setup(argv) {
   const omcStatus = checkCommandAvailable(config.omcBin);
 
   console.log('Oh My Wiki setup');
-  console.log(`Registered base wiki: ${config.wikiPath}`);
+  console.log(`Registered wiki: ${config.wikiPath}`);
   console.log(`Wiki language: ${config.wikiLanguage}`);
   if (contractSetup.created) console.log(`- Generated wiki contract: ${contractSetup.contractPath}`);
   if (contractSetup.updated) console.log(`- Updated wiki contract: ${contractSetup.contractPath}`);

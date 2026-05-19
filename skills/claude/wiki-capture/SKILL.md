@@ -1,8 +1,8 @@
 ---
 name: wiki-capture
-description: Capture reusable session knowledge into the configured base wiki as a Raw note.
+description: Capture reusable session knowledge into the configured wiki as a Raw note.
 metadata:
-  short-description: Capture reusable session knowledge into the configured base wiki as a Raw note.
+  short-description: Capture reusable session knowledge into the configured wiki as a Raw note.
 ---
 
 # Wiki Capture

@@ -1,8 +1,8 @@
 ---
 name: wiki-refresh
-description: Refresh the configured base wiki contract and optional search index.
+description: Refresh the configured wiki contract and optional search index.
 metadata:
-  short-description: Refresh the configured base wiki contract and optional search index.
+  short-description: Refresh the configured wiki contract and optional search index.
 ---
 
 # Wiki Refresh

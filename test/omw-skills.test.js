@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { promisify } from 'node:util';
@@ -8,6 +8,20 @@ import test from 'node:test';
 
 const execFileAsync = promisify(execFile);
 const cliPath = path.resolve('src/cli/omw.js');
+
+test('managed wiki skill prompts target the configured wiki, not only the base wiki', async () => {
+  for (const platform of ['codex', 'claude']) {
+    const root = path.join('skills', platform);
+    const entries = await readdir(root, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory()) continue;
+      const skillPath = path.join(root, entry.name, 'SKILL.md');
+      const content = await readFile(skillPath, 'utf8');
+      assert.doesNotMatch(content, /configured base wiki/i, `${skillPath} must not steer agents toward only the bundled base wiki`);
+      assert.match(content, /configured wiki|wiki knowledge|Raw note|contract/i, `${skillPath} should describe a connected-wiki-safe workflow`);
+    }
+  }
+});
 
 test('managed skills install, report status, and uninstall for both platforms', async () => {
   for (const platform of ['codex', 'claude']) {
@@ -81,4 +95,3 @@ test('managed skills refuse to overwrite unmanaged user skills', async () => {
   const content = await readFile(path.join(userSkill, 'SKILL.md'), 'utf8');
   assert.equal(content, '# User skill\n');
 });
-
